@@ -2,8 +2,27 @@
 
 # Build script for prxy - Multi-platform build
 # Supports: Linux/Windows + amd64/arm64
+# Usage: ./build.sh [--upx] [--version VERSION]
 
 set -e
+
+# Parse arguments
+USE_UPX=false
+for arg in "$@"; do
+    case $arg in
+        --upx)
+            USE_UPX=true
+            shift
+            ;;
+        --version=*)
+            VERSION="${arg#*=}"
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
 
 # Colors for output
 RED='\033[0;31m'
@@ -18,12 +37,23 @@ VERSION="${VERSION:-dev}"
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LDFLAGS="-X main.version=$VERSION -X main.buildTime=$BUILD_TIME"
 
+# Check if upx is installed
+check_upx() {
+    if command -v upx &> /dev/null; then
+        UPX_VERSION=$(upx --version | head -n1)
+        echo -e "${GREEN}✓ UPX found: ${UPX_VERSION}${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}⚠ UPX not found, skipping compression${NC}"
+        return 1
+    fi
+}
+
 # Platforms to build
 PLATFORMS=(
     "linux/amd64"
     "linux/arm64"
     "windows/amd64"
-    "windows/arm64"
     "darwin/amd64"
     "darwin/arm64"
 )
@@ -59,6 +89,20 @@ build_platform() {
         .
 
     if [ $? -eq 0 ]; then
+        # Compress with UPX if enabled
+        if [ "$USE_UPX" = true ]; then
+            if check_upx; then
+                echo -e "${YELLOW}  Compressing with UPX -5...${NC}"
+                upx -5 "${PLATFORM_DIR}/${OUTPUT_NAME}"
+                if [ $? -eq 0 ]; then
+                    COMPRESSED_SIZE=$(du -h "${PLATFORM_DIR}/${OUTPUT_NAME}" | cut -f1)
+                    echo -e "${GREEN}  Compressed size: ${COMPRESSED_SIZE}${NC}"
+                else
+                    echo -e "${YELLOW}  ⚠ UPX compression failed, using uncompressed binary${NC}"
+                fi
+            fi
+        fi
+
         # Create tarball for all platforms
         tar -czf "${OUTPUT_DIR}/${APP_NAME}-${GOOS}-${GOARCH}.tar.gz" \
             -C "$PLATFORM_DIR" "$OUTPUT_NAME"
@@ -114,3 +158,7 @@ echo -e "  tar -xzf ${APP_NAME}-<platform>-<arch>.tar.gz"
 echo -e "\n${YELLOW}Installation:${NC}"
 echo -e "  sudo cp ${OUTPUT_DIR}/linux-amd64/${APP_NAME} /usr/local/bin/"
 echo -e "  sudo chmod +x /usr/local/bin/${APP_NAME}"
+echo -e "\n${YELLOW}Build options:${NC}"
+echo -e "  ./build.sh              # Normal build"
+echo -e "  ./build.sh --upx        # Build with UPX compression"
+echo -e "  ./build.sh --version=1.0.0 # Set version"
