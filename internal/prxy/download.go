@@ -5,21 +5,12 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/Madh93/prxy/internal/cache"
 )
 
 func (ctx *RequestContext) fetchWithRedirectFollow(targetURL string, proxyURL string) (*http.Response, string, bool, error) {
-	// GitHub releases need longer timeout and HTTP/2 optimization
-	isGitHub := strings.Contains(targetURL, "github.com")
-
-	timeout := 60 * time.Second
-	if isGitHub {
-		timeout = 10 * time.Minute
-	}
-
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -32,12 +23,11 @@ func (ctx *RequestContext) fetchWithRedirectFollow(targetURL string, proxyURL st
 		ResponseHeaderTimeout: 60 * time.Second,
 		// Optimize for GitHub CDN connections
 		DisableCompression:  false,
-		ForceAttemptHTTP2:   isGitHub,
+		ForceAttemptHTTP2:   true,
 		MaxIdleConnsPerHost: 10,
 	}
 
 	client := &http.Client{
-		Timeout:   timeout,
 		Transport: transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -48,10 +38,6 @@ func (ctx *RequestContext) fetchWithRedirectFollow(targetURL string, proxyURL st
 		if parsedProxy, err := url.Parse(proxyURL); err == nil {
 			transport.Proxy = http.ProxyURL(parsedProxy)
 		}
-	}
-
-	if isGitHub {
-		ctx.logger.Debug("GitHub releases file detected, using optimized HTTP/2 client", "url", targetURL)
 	}
 
 	maxRedirects := 10
