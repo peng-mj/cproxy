@@ -3,7 +3,6 @@ package logging
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -21,7 +20,6 @@ import (
 func newTestDefaultConfig() *config.LoggingConfig {
 	return &config.LoggingConfig{
 		Level:  config.LogLevelInfo,
-		Format: config.LogFormatText,
 		Output: config.LogOutputStdout,
 		Path:   "",
 	}
@@ -30,7 +28,7 @@ func newTestDefaultConfig() *config.LoggingConfig {
 // TestNew checks the Logging creation.
 func TestNew(t *testing.T) {
 	t.Run("should_create_logger_with_default_config", func(t *testing.T) {
-		cfg := newTestDefaultConfig() // Uses StdoutOutput and TextFormat by default from helper
+		cfg := newTestDefaultConfig() // Uses StdoutOutput by default from helper
 
 		logger, err := New(cfg)
 		if err != nil {
@@ -51,7 +49,6 @@ func TestNew(t *testing.T) {
 		cfg := newTestDefaultConfig()
 		cfg.Output = config.LogOutputFile
 		cfg.Path = logFilePath
-		cfg.Format = config.LogFormatJSON // Explicitly JSON to test this path
 
 		logger, err := New(cfg)
 		if err != nil {
@@ -111,7 +108,7 @@ func TestLogger_Close(t *testing.T) {
 	t.Run("should_close_file_writer_successfully", func(t *testing.T) {
 		tempDir := t.TempDir()
 		logFilePath := filepath.Join(tempDir, "test_close.log")
-		cfg := &config.LoggingConfig{Output: config.LogOutputFile, Path: logFilePath, Level: config.LogLevelInfo, Format: config.LogFormatText}
+		cfg := &config.LoggingConfig{Output: config.LogOutputFile, Path: logFilePath, Level: config.LogLevelInfo}
 
 		logger, err := New(cfg)
 		if err != nil {
@@ -133,7 +130,7 @@ func TestLogger_Close(t *testing.T) {
 	})
 
 	t.Run("should_return_nil_when_closing_nopWriteCloser_for_stdout", func(t *testing.T) {
-		cfg := &config.LoggingConfig{Output: "some_default_that_goes_to_stdout", Level: config.LogLevelInfo, Format: config.LogFormatText}
+		cfg := newTestDefaultConfig()
 		logger, err := New(cfg) // This will use nopWriteCloser{os.Stdout} due to default in parseOutput
 		if err != nil {
 			t.Fatalf("Failed to create logger: %v", err)
@@ -281,108 +278,31 @@ func TestParseLevel(t *testing.T) {
 	}
 }
 
-// TestParseFormat checks the Logging Format configuration.
-func TestParseFormat(t *testing.T) {
-	var buf bytes.Buffer // Dummy writer for handler creation
-
-	// Tests cases
-	tests := []struct {
-		name          string                // Name of the subtest
-		cfg           *config.LoggingConfig // The Logging configuration
-		expectJSON    bool                  // true if JSONHandler is expected
-		expectHandler slog.Leveler          // For checking the level
-	}{
-		{
-			name:          "format_text_should_be_text",
-			cfg:           &config.LoggingConfig{Format: config.LogFormatText, Level: config.LogLevel("info")},
-			expectJSON:    false,
-			expectHandler: slog.LevelInfo,
-		},
-		{
-			name:          "format_json_should_be_json",
-			cfg:           &config.LoggingConfig{Format: config.LogFormatJSON, Level: config.LogLevel("debug")},
-			expectJSON:    true,
-			expectHandler: slog.LevelDebug,
-		},
-		{
-			name:          "format_default_should_be_text_handler", // slog.TextHandler
-			cfg:           &config.LoggingConfig{Format: "other", Level: config.LogLevel("warn")},
-			expectJSON:    false,
-			expectHandler: slog.LevelWarn,
-		},
-	}
-
-	// Run Tests
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler, err := parseFormat(&buf, tt.cfg)
-			if err != nil {
-				t.Fatalf("parseFormat() failed: %v", err)
-			}
-
-			if tt.expectJSON {
-				if _, ok := handler.(*slog.JSONHandler); !ok {
-					t.Errorf("Expected *slog.JSONHandler, got %T", handler)
-				}
-			} else {
-				if _, ok := handler.(*slog.TextHandler); !ok {
-					t.Errorf("Expected *slog.TextHandler, got %T", handler)
-				}
-			}
-
-			// Check if the handler has the correct level set
-			if !handler.Enabled(context.TODO(), tt.expectHandler.(slog.Level)) {
-				t.Errorf("Handler not enabled for expected level %v", tt.expectHandler)
-			}
-			// Check that it's not enabled for a level below the set level (if not min level)
-			if tt.expectHandler.(slog.Level) > slog.LevelDebug { // Arbitrary lowest level for this check
-				if handler.Enabled(context.TODO(), tt.expectHandler.(slog.Level)-1) {
-					t.Errorf("Handler unexpectedly enabled for level below %v", tt.expectHandler)
-				}
-			}
-		})
-	}
-}
-
 // TestLogger_LoggingMethods checks individual logger methods (Debug, Info, Warn, Error).
 func TestLogger_LoggingMethods(t *testing.T) {
 	// Tests cases
 	tests := []struct {
 		name          string
 		logMethod     func(l *Logger, msg string, args ...any)
-		handlerLevel  slog.Level       // Level to set the test handler to
-		logEntryLevel slog.Level       // Level of the log entry being made
-		expectedMsg   string           // The expected message
-		args          []any            // Arbitrary args
-		format        config.LogFormat // "json" or "text" (which will become slog.TextHandler)
-		shouldLog     bool             // Whether the message is expected to be logged based on handlerLevel
+		handlerLevel  slog.Level // Level to set the test handler to
+		logEntryLevel slog.Level // Level of the log entry being made
+		expectedMsg   string     // The expected message
+		args          []any      // Arbitrary args
+		shouldLog     bool       // Whether the message is expected to be logged based on handlerLevel
 	}{
-		// JSON Handler
-		{"json_info_level_log_info", (*Logger).Info, slog.LevelInfo, slog.LevelInfo, "info test", []any{"key", "val"}, config.LogFormatJSON, true},
-		{"json_info_level_log_debug", (*Logger).Debug, slog.LevelInfo, slog.LevelDebug, "debug test", []any{"key", "val"}, config.LogFormatJSON, false}, // Debug < Info
-		{"json_debug_level_log_debug", (*Logger).Debug, slog.LevelDebug, slog.LevelDebug, "debug test", []any{"key", "val"}, config.LogFormatJSON, true},
-		{"json_warn_level_log_warn", (*Logger).Warn, slog.LevelWarn, slog.LevelWarn, "warn test", []any{"key", "val"}, config.LogFormatJSON, true},
-		{"json_error_level_log_error", (*Logger).Error, slog.LevelError, slog.LevelError, "error test", []any{"key", "val"}, config.LogFormatJSON, true},
-		// Text Handler
-		{"text_info_level_log_info", (*Logger).Info, slog.LevelInfo, slog.LevelInfo, "info test", []any{"key", "val"}, "default_text", true},
-		{"text_info_level_log_debug", (*Logger).Debug, slog.LevelInfo, slog.LevelDebug, "debug test", []any{"key", "val"}, "default_text", false},
-		{"text_debug_level_log_debug", (*Logger).Debug, slog.LevelDebug, slog.LevelDebug, "debug test", []any{"key", "val"}, "default_text", true},
-		{"text_warn_level_log_warn", (*Logger).Warn, slog.LevelWarn, slog.LevelWarn, "warn test", []any{"key", "val"}, "default_text", true},
-		{"text_error_level_log_error", (*Logger).Error, slog.LevelError, slog.LevelError, "error test", []any{"key", "val"}, "default_text", true},
+		{"text_info_level_log_info", (*Logger).Info, slog.LevelInfo, slog.LevelInfo, "info test", []any{"key", "val"}, true},
+		{"text_info_level_log_debug", (*Logger).Debug, slog.LevelInfo, slog.LevelDebug, "debug test", []any{"key", "val"}, false},
+		{"text_debug_level_log_debug", (*Logger).Debug, slog.LevelDebug, slog.LevelDebug, "debug test", []any{"key", "val"}, true},
+		{"text_warn_level_log_warn", (*Logger).Warn, slog.LevelWarn, slog.LevelWarn, "warn test", []any{"key", "val"}, true},
+		{"text_error_level_log_error", (*Logger).Error, slog.LevelError, slog.LevelError, "error test", []any{"key", "val"}, true},
 	}
 
 	// Run tests
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			var handler slog.Handler
-
 			opts := &slog.HandlerOptions{Level: tt.handlerLevel}
-			if tt.format == config.LogFormatJSON {
-				handler = slog.NewJSONHandler(&buf, opts)
-			} else { // Default to slog.TextHandler
-				handler = slog.NewTextHandler(&buf, opts)
-			}
+			handler := newCompactTextHandler(&buf, opts)
 
 			logger := &Logger{slogger: slog.New(handler), exitFunc: func(int) {}} // Mock exit
 
@@ -397,21 +317,13 @@ func TestLogger_LoggingMethods(t *testing.T) {
 					t.Errorf("Output %q does not contain expected message %q", output, tt.expectedMsg)
 				}
 				if len(tt.args) > 0 {
-					// Crude check for args, specific checks depend on Text vs JSON output structure
-					if tt.format == config.LogFormatJSON {
-						if !strings.Contains(output, fmt.Sprintf("%q:%q", tt.args[0], tt.args[1])) && // "key":"val"
-							!strings.Contains(output, fmt.Sprintf("%q:%v", tt.args[0], tt.args[1])) { // "key":val (for numbers)
-							t.Errorf("JSON output %q does not seem to contain args %v", output, tt.args)
-						}
-					} else { // TextFormat
-						if !strings.Contains(output, fmt.Sprintf("%s=%s", tt.args[0], tt.args[1])) && // key=val (if val is simple string)
-							!strings.Contains(output, fmt.Sprintf("%s=%q", tt.args[0], tt.args[1])) { // key="val" (if val has spaces or is quoted)
-							t.Errorf("Text output %q does not seem to contain args %v", output, tt.args)
-						}
+					if !strings.Contains(output, fmt.Sprintf("%s=%s", tt.args[0], tt.args[1])) &&
+						!strings.Contains(output, fmt.Sprintf("%s=%q", tt.args[0], tt.args[1])) {
+						t.Errorf("Text output %q does not seem to contain args %v", output, tt.args)
 					}
 				}
 
-				// Check for level string (case-sensitive for JSON, slog.TextHandler also uses uppercase)
+				// Check for level string
 				var expectedLevelStr string
 				switch tt.logEntryLevel {
 				case slog.LevelDebug:
@@ -423,7 +335,7 @@ func TestLogger_LoggingMethods(t *testing.T) {
 				case slog.LevelError:
 					expectedLevelStr = "ERROR"
 				}
-				if !strings.Contains(output, "level="+expectedLevelStr) && !strings.Contains(output, "\"level\":\""+expectedLevelStr+"\"") {
+				if !strings.Contains(output, "["+expectedLevelStr+"]") {
 					t.Errorf("Output %q does not contain expected level string for %s", output, expectedLevelStr)
 				}
 
@@ -439,7 +351,7 @@ func TestLogger_LoggingMethods(t *testing.T) {
 // TestLogger_Fatal checks the Fatal logger method.
 func TestLogger_Fatal(t *testing.T) {
 	var buf bytes.Buffer
-	handler := slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError})
+	handler := newCompactTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelError})
 
 	var exitCode = -1
 	var exited = false
@@ -465,8 +377,8 @@ func TestLogger_Fatal(t *testing.T) {
 	output := buf.String()
 
 	// Check that the message was logged at Error level
-	if !strings.Contains(output, "level=ERROR") {
-		t.Errorf("Fatal log output %q does not contain 'level=ERROR'", output)
+	if !strings.Contains(output, "[ERROR]") {
+		t.Errorf("Fatal log output %q does not contain '[ERROR]'", output)
 	}
 	if !strings.Contains(output, testMsg) {
 		t.Errorf("Fatal log output %q does not contain message %q", output, testMsg)
@@ -477,9 +389,9 @@ func TestLogger_Fatal(t *testing.T) {
 
 	// Check that the exit function was called
 	exitMutex.Lock()
+	defer exitMutex.Unlock()
 	finalExited := exited
 	finalExitCode := exitCode
-	exitMutex.Unlock()
 
 	if !finalExited {
 		t.Error("logger.Fatal() did not call the exit function")

@@ -7,7 +7,8 @@
 // The main structures include:
 //
 //   - Config: Represents the overall configuration object, containing nested
-//     configurations for Host, Port, Proxy URL and Target URL, and Logging settings.
+//     configurations for Host, Port, Proxy URL and Target URL, Cache settings,
+//     and Logging settings.
 //
 //   - LoggingConfig: Holds logging configuration settings, including the log level,
 //     format, output destination, and path for log files. It includes validation
@@ -21,86 +22,192 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/Madh93/prxy/internal/validation"
-	"github.com/knadh/koanf/providers/cliflagv3"
-	"github.com/knadh/koanf/v2"
-	"github.com/urfave/cli/v3"
 )
 
 // Config represents a configuration object. This type is
 // designed to hold server and other configurations.
 type Config struct {
-	Target  string        `koanf:"target"` // Target service URL
-	Proxy   string        `koanf:"proxy"`  // Outbound Proxy URL
-	Host    string        `koanf:"host"`   // Server listening host
-	Port    int           `koanf:"port"`   // Server listening port
-	Logging LoggingConfig `koanf:"log"`    // Logging configuration
+	Proxy   string                   // Outbound Proxy URL (from CLI or JSON config)
+	Host    string                   // Server listening host (from JSON config)
+	Cache   CacheConfig              // Cache configuration (from JSON config)
+	Logging LoggingConfig            // Logging configuration (from JSON config)
+	Routes  []validation.RouteConfig // Routes configuration (from JSON config)
 }
 
 // AppName is the name of the application.
 const AppName = "prxy"
 
-// Defaults is the default configuration for the app.
-var Defaults = Config{
-	Host: "localhost",
-	Port: 0,
-	Logging: LoggingConfig{
-		Level:  LogLevelInfo,
-		Format: LogFormatText,
-		Output: LogOutputStdout,
-	},
-}
-
 // New loads the application configuration from various sources:
-//   - Defaults
-//   - Environment Variables
-//   - Flags
-func New(cmd *cli.Command) (*Config, error) {
-	// Setup koanf
-	k := koanf.New(".")
-
-	// Load defaults
-	cfg := Defaults
-
-	// Load environment variables and flags
-	if err := k.Load(cliflagv3.Provider(cmd, "-"), nil); err != nil {
-		return nil, fmt.Errorf("failed to load CLI flags: %v", err)
+//   - JSON configuration file (created with defaults if missing)
+//   - Command line flags (target, proxy, port)
+func New(flags *CLIFlags) (*Config, error) {
+	// 1. Get configuration file path
+	configPath := flags.ConfigPath
+	if configPath == "" {
+		configPath = "./cache/prxy.json"
 	}
 
-	// Unmarshal the loaded configuration
-	if err := k.Unmarshal(AppName, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %v", err)
+	// 2. Load JSON configuration
+	var appConfig *AppConfig
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		// Config file doesn't exist, create default config
+		fmt.Printf("Creating default configuration at %s\n", configPath)
+		if err := InitDefaultAppConfig(configPath); err != nil {
+			return nil, fmt.Errorf("failed to create default config: %v", err)
+		}
+		appConfig, err = LoadAppConfig(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load default config: %v", err)
+		}
+	} else {
+		// Config file exists, load it
+		var err error
+		appConfig, err = LoadAppConfig(configPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load config: %v", err)
+		}
 	}
 
-	// Validate the configuration
-	if err := validateConfig(&cfg); err != nil {
+	proxy := flags.Proxy
+	target := flags.Target
+	port := flags.Port
+	host := flags.Host
+	logLevel := flags.LogLevel
+	logOutput := flags.LogOutput
+	enableCache := flags.EnableCache
+
+	if proxy == "" {
+		proxy = appConfig.Proxy
+	}
+
+	if target != "" && port > 0 {
+		portExists := false
+		for _, route := range appConfig.Routes {
+			if route.Port == port {
+				portExists = true
+				break
+			}
+		}
+		if !portExists {
+			additionalRoute := validation.RouteConfig{
+				Target: target,
+				Port:   port,
+			}
+			appConfig.Routes = append(appConfig.Routes, additionalRoute)
+			fmt.Printf("Added route from CLI: %s -> port %d\n", target, port)
+		} else {
+			fmt.Printf("Warning: port %d already exists in config, skipping CLI route\n", port)
+		}
+	}
+
+	loggingConfig := appConfig.Logging
+	if logLevel != "" {
+		loggingConfig.Level = LogLevel(logLevel)
+	}
+	if logOutput != "" {
+		loggingConfig.Output = LogOutput(logOutput)
+	}
+
+	cacheConfig := appConfig.Cache
+	if enableCache {
+		cacheConfig.Enabled = true
+	}
+
+	hostConfig := appConfig.Host
+	if host != "" {
+		hostConfig = host
+	}
+
+	cfg := &Config{
+		Proxy:   proxy,
+		Host:    hostConfig,
+		Cache:   cacheConfig,
+		Logging: loggingConfig,
+		Routes:  appConfig.Routes,
+	}
+
+	// 9. Validate the configuration
+	if err := validateConfig(proxy, appConfig.Routes); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	return &cfg, nil
+	return cfg, nil
 }
 
 // validateConfig checks the validity of the configuration.
-func validateConfig(cfg *Config) error {
-	// Target URL
-	if err := validation.ValidateURL(cfg.Target); err != nil {
-		return fmt.Errorf("invalid target URL: %v", err)
-	}
-
-	// Proxy URL
-	if err := validation.ValidateURL(cfg.Proxy); err != nil {
-		return fmt.Errorf("invalid proxy URL: %v", err)
-	}
-
-	// Port
-	if cfg.Port < 0 || cfg.Port > 65535 {
-		return fmt.Errorf("invalid port: %d", cfg.Port)
-	}
-
-	// Logging
-	if err := cfg.Logging.Validate(); err != nil {
+func validateConfig(proxy string, routes []validation.RouteConfig) error {
+	// Validate routes
+	if err := validation.ValidateRoutes(routes); err != nil {
 		return err
+	}
+
+	// Validate proxy URL (optional)
+	if proxy != "" {
+		if err := validation.ValidateURL(proxy); err != nil {
+			return fmt.Errorf("invalid proxy URL: %v", err)
+		}
+	}
+
+	// Check if we have at least one route
+	if len(routes) == 0 {
+		return fmt.Errorf("no routes configured. Please add routes to config file or use --target and --port")
+	}
+
+	return nil
+}
+
+// UpdateAndSaveAppConfig updates the app config file with CLI parameters and saves it.
+func UpdateAndSaveAppConfig(configPath string, flags *CLIFlags, cfg *Config) error {
+	appConfig, err := LoadAppConfig(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load app config: %v", err)
+	}
+
+	logLevel := flags.LogLevel
+	logOutput := flags.LogOutput
+
+	if logLevel != "" {
+		appConfig.Logging.Level = LogLevel(logLevel)
+	}
+	if logOutput != "" {
+		appConfig.Logging.Output = LogOutput(logOutput)
+	}
+
+	enableCache := flags.EnableCache
+	if enableCache {
+		appConfig.Cache.Enabled = true
+	}
+
+	appConfig.Host = cfg.Host
+	appConfig.Cache = cfg.Cache
+
+	if cfg.Proxy != "" {
+		appConfig.Proxy = cfg.Proxy
+	}
+
+	target := flags.Target
+	port := flags.Port
+	if target != "" && port > 0 {
+		portExists := false
+		for _, route := range appConfig.Routes {
+			if route.Port == port {
+				portExists = true
+				break
+			}
+		}
+		if !portExists {
+			appConfig.Routes = append(appConfig.Routes, validation.RouteConfig{
+				Target: target,
+				Port:   port,
+			})
+		}
+	}
+
+	if err := SaveAppConfig(appConfig, configPath); err != nil {
+		return fmt.Errorf("failed to save app config: %v", err)
 	}
 
 	return nil

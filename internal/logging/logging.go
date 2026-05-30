@@ -15,11 +15,13 @@
 package logging
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 
 	"github.com/Madh93/prxy/internal/config"
 )
@@ -151,23 +153,90 @@ func parseLevel(logLevel config.LogLevel) slog.Level {
 	return level
 }
 
-// parseFormat creates an slog.Handler based on the configuration.
+// parseFormat creates an slog.Handler with the compact format.
 func parseFormat(output io.Writer, cfg *config.LoggingConfig) (slog.Handler, error) {
-	var handler slog.Handler
-
-	// Setup handler options like log level.
-	options := slog.HandlerOptions{
+	opts := &slog.HandlerOptions{
 		Level: parseLevel(cfg.Level),
 	}
+	return newCompactTextHandler(output, opts), nil
+}
 
-	switch cfg.Format {
-	case config.LogFormatJSON:
-		handler = slog.NewJSONHandler(output, &options)
-	case config.LogFormatText:
-		fallthrough
-	default:
-		handler = slog.NewTextHandler(output, &options)
+// compactTextHandler is a custom slog.Handler that outputs logs in a compact format.
+// Format: MM-DD HH:MM:SS.mmm [LEVEL] message key=value key=value...
+type compactTextHandler struct {
+	mu    sync.Mutex
+	out   io.Writer
+	level slog.Level
+}
+
+// newCompactTextHandler creates a new compactTextHandler.
+func newCompactTextHandler(output io.Writer, opts *slog.HandlerOptions) *compactTextHandler {
+	h := &compactTextHandler{
+		out:   output,
+		level: slog.LevelInfo,
 	}
+	if opts != nil && opts.Level != nil {
+		h.level = opts.Level.Level()
+	}
+	return h
+}
 
-	return handler, nil
+// Enabled reports whether the handler handles records at the given level.
+func (h *compactTextHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return level >= h.level
+}
+
+// Handle handles the Record.
+func (h *compactTextHandler) Handle(ctx context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Format: MM-DD HH:MM:SS.mmm [LEVEL] message key=value key=value...
+	t := r.Time
+	buf := make([]byte, 0, 200)
+	buf = append(buf, fmt.Sprintf("%02d-%02d %02d:%02d:%02d.%03d ",
+		t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond()/1_000_000)...)
+	buf = append(buf, levelToString(r.Level)...)
+	buf = append(buf, ' ')
+	buf = append(buf, r.Message...)
+
+	// Append args as key=value pairs
+	r.Attrs(func(a slog.Attr) bool {
+		buf = append(buf, ' ')
+		buf = append(buf, a.Key...)
+		buf = append(buf, '=')
+		buf = append(buf, a.Value.String()...)
+		return true
+	})
+
+	buf = append(buf, '\n')
+
+	_, err := h.out.Write(buf)
+	return err
+}
+
+// WithAttrs returns a new Handler whose attributes are the union of h's attributes
+// and attrs. Not implemented for this simple handler.
+func (h *compactTextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return h
+}
+
+// WithGroup returns a new Handler with the given group appended to the receiver's
+// existing groups. Not implemented for this simple handler.
+func (h *compactTextHandler) WithGroup(name string) slog.Handler {
+	return h
+}
+
+// levelToString converts slog.Level to string with brackets.
+func levelToString(level slog.Level) string {
+	switch {
+	case level < slog.LevelInfo:
+		return "[DEBUG]"
+	case level < slog.LevelWarn:
+		return "[INFO]"
+	case level < slog.LevelError:
+		return "[WARN]"
+	default:
+		return "[ERROR]"
+	}
 }

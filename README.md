@@ -3,7 +3,7 @@
 </p>
 <p align="center">
   </br>
-  <b>prxy</b> is a command-line reverse proxy written in <a href="https://go.dev/">Go</a> for forwarding HTTP requests through an outbound proxy, while automatically rewriting the <b>Host</b> header for you.
+  <b>prxy</b> is a versatile HTTP reverse proxy written in <a href="https://go.dev/">Go</a> that supports batch proxy configuration, optional outbound proxy routing, automatic Host header rewriting, and intelligent HTTP response caching.
 </p>
 <hr>
 
@@ -15,161 +15,296 @@
 [![License](https://img.shields.io/badge/License-MIT-brightgreen)](LICENSE)
 
 <p align="center">
-  <a href="#why">Why?</a> •
+  <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#contributing">Contributing</a> •
-  <a href="#acknowledgements">Acknowledgements</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#configuration">Configuration</a> •
+  <a href="#caching">Caching</a> •
+  <a href="#development">Development</a> •
   <a href="#license">License</a>
+  <br>
+  <a href="README_CN.md">简体中文</a>
 </p>
 
-## Why?
+## Features
 
-The idea for `prxy` was born out of a common, yet specific, personal need: accessing self-hosted services in my homelab from the other side of the world.
+### Core Functionality
 
-Like many [homelab](https://www.reddit.com/r/homelab/) enthusiasts, my services are not exposed to the public internet; they are only accessible through a [WireGuard VPN](https://www.wireguard.com/). While connecting to the VPN is easy, I didn't want to route my entire computer's traffic through my home network. This would change my public IP and slow down my local internet access.
+- **Batch Proxy Configuration**: Run multiple proxy services simultaneously, each listening on a different port and forwarding to a different target URL
+- **Outbound Proxy Support**: Route all proxy traffic through an external HTTP proxy (e.g., wireproxy, Squid)
+- **Automatic Host Header Rewriting**: Ensures requests reach the correct destination service
+- **Graceful Shutdown**: Handles SIGTERM/SIGINT signals for clean shutdown
 
-The goal was to achieve split-tunneling on an application-by-application basis. A fantastic tool, [wireproxy](https://github.com/whyvl/wireproxy), got me 90% of the way there. It creates an HTTP proxy from a WireGuard peer, allowing applications with proxy settings (like [Firefox Containers](https://support.mozilla.org/en-US/kb/containers), [Thunderbird](https://www.thunderbird.net/), or [Joplin](https://joplinapp.org/)) to have their traffic transparently routed through the VPN.
+### Advanced Caching
 
-**But what about applications that don't support proxy configurations?**
+- **Path-Based Storage**: Cache files are stored using URL paths for easy inspection
+- **Streaming Cache Support**: Efficiently handle large files with streaming writes
+- **Range Request Support**: HTTP Range requests are fully supported for partial content delivery
+- **Configurable Cache Policies**: 
+  - File size limits (min/max)
+  - Total cache size limit
+  - Extension-based exclusions
+  - Authenticated request caching (optional)
+- **GitHub Releases Optimization**: Special handling for GitHub release downloads with improved performance
+- **Cache Statistics**: Track cache hits, misses, and storage usage
 
-This was the missing piece. Many tools, especially browser extensions or simple clients, expect a direct URL and have no field to enter a proxy. This is precisely the gap `prxy` is designed to fill.
+### Configuration Management
 
-`prxy` acts as the perfect companion to `wireproxy`. It creates a local HTTP reverse proxy that can forward traffic to your target service *through* another outbound proxy (like the one `wireproxy` creates). Crucially, it automatically rewrites the `Host` header, ensuring the request reaches your service correctly, even if it's behind a reverse proxy in your homelab.
-
-### A Real-World Example
-
-I selfhost [Karakeep](https://karakeep.app/). The [Browser extensions](https://docs.karakeep.app/quick-sharing/#browser-extensions) need a URL to connect to, but don't have a proxy setting. With `prxy`, the solution is simple:
-
-```shell
-prxy --target https://karakeep.my-homelab.tld \
-     --proxy http://127.0.0.1:25345 \
-     --port 12345
-```
-
-Now, I can configure the Karakeep extension to point to `http://localhost:12345`. `prxy` accepts the connection locally and transparently forwards it through `wireproxy` to my homelab, making the extension work seamlessly as if I were on my local network.
-
-<div align="center">
-  <img src="./docs/img/karakeep.png" alt="Karakeep Browser Extension integration">
-</div>
+- **Multiple Configuration Sources**: CLI flags, environment variables, and config files
+- **Configuration Persistence**: Automatically saves settings to config file
+- **Flexible Route Management**: Add routes via CLI or config file
+- **Dynamic Route Addition**: Temporarily add routes without editing config file
 
 ## Installation
 
-### GNU/Linux or macOS
+### From Binary
 
-Via [Homebrew](https://brew.sh/):
+Download the latest binary from [releases](https://github.com/Madh93/prxy/releases):
 
-```shell
-brew install madh93/tap/prxy
-```
-
-### Docker
-
-#### Using `docker run`
-
-Use the `docker run` command to start `prxy`:
-
-```sh
-docker run --name prxy ghcr.io/madh93/prxy:latest --target https://myservice.domain.tld \
-     --proxy http://my-http-proxy \
-     --port 12345
-```
-
-#### Using `docker compose`
-
-Create a `docker-compose.yml` file with the following content:
-
-```yml
-services:
-  prxy:
-    image: ghcr.io/madh93/prxy:latest
-    restart: unless-stopped
-    environment:
-      - PRXY_TARGET=https://myservice.domain.tld
-      - PRXY_PROXY=http://my-http-proxy
-      - PRXY_PORT=12345
-```
-
-Use the `docker compose up` command to start `prxy`:
-
-```sh
-docker compose up
-```
-
-### From releases
-
-Download the latest binary from [the releases page](https://github.com/Madh93/prxy/releases):
-
-```sh
+```bash
 curl -L https://github.com/Madh93/prxy/releases/latest/download/prxy_$(uname -s)_$(uname -m).tar.gz | tar -xz -O prxy > /usr/local/bin/prxy
 chmod +x /usr/local/bin/prxy
 ```
 
-### From source
+### From Source
 
-If you have Go installed:
-
-```sh
+```bash
 go install github.com/Madh93/prxy@latest
 ```
 
-## Usage
+### Docker
 
-To start `prxy`, you need to specify at least the target and outbound proxy URLs.
-
-```shell
-prxy --target https://myservice.domain.tld --proxy http://127.0.0.1:25345 --port 12345
+```bash
+docker run --name prxy ghcr.io/madh93/prxy:latest --proxy http://proxy:8080
 ```
 
-Now, requests to `http://127.0.0.1:12345/some/path` will be forwarded to `https://myservice.domain.tld/some/path` with the `Host: myservice.domain.tld` header, through your outbound proxy.
+### Docker Compose
 
-### Configuration Options
-
-The application can be configured using command-line flags or environment variables.
-
-For a complete and up-to-date list of all available flags, you can always run:
-
-```shell
-prxy --help
+```yaml
+services:
+  prxy:
+    image: ghcr.io/madh93/prxy:latest
+    restart: unless-stopped
+    volumes:
+      - ./config.json:/root/cache/prxy.json:ro
+      - ./cache:/root/cache
+    environment:
+      - PRXY_PROXY=http://proxy:8080
 ```
 
-The main configuration options are summarized in the table below:
+## Quick Start
 
-| Flag | Environment Variable | Description | Required | Default Value |
-| :--- | :--- | :--- | :--- | :--- |
-| `--target`, `-t` | `PRXY_TARGET` | Target service URL. | **Yes** | N/A |
-| `--proxy`, `-x` | `PRXY_PROXY` | Outbound HTTP Proxy URL. | **Yes** | N/A |
-| `--host`, `-H` | `PRXY_HOST` | Host to listen on. | No | `localhost` |
-| `--port`, `-P` | `PRXY_PORT` | Port to listen on. | No | `random` |
-| `--log-level`, `-l` | `PRXY_LOG_LEVEL` | Set log level: `debug`, `info`, `warn`, `error`, `fatal`. | No | `info` |
-| `--log-format`, `-f` | `PRXY_LOG_FORMAT`| Set log format: `text`, `json`. | No | `text` |
-| `--log-output`, `-o`| `PRXY_LOG_OUTPUT`| Set log output: `stdout`, `stderr`, `file`. | No | `stdout` |
+### Single Target Mode
+
+```bash
+prxy --target https://example.com --proxy http://localhost:8080 --port 8080
+```
+
+### Batch Mode (Recommended)
+
+Create a configuration file at `./cache/prxy.json`:
+
+```json
+{
+  "host": "0.0.0.0",
+  "proxy": "http://localhost:8080",
+  "routes": [
+    {"target": "https://github.com", "port": 8081},
+    {"target": "https://gitlab.com", "port": 8082},
+    {"target": "https://api.example.com", "port": 8083}
+  ],
+  "cache": {
+    "enabled": true,
+    "directory": "./cache"
+  }
+}
+```
+
+Start the service:
+
+```bash
+prxy
+```
+
+### Add Temporary Route
+
+Add a route via CLI without editing the config file:
+
+```bash
+prxy --target https://httpbin.org --port 9999
+```
+
+## Configuration
+
+### Configuration File
+
+The configuration file is automatically created at `./cache/prxy.json` on first run. The default structure:
+
+```json
+{
+  "host": "0.0.0.0",
+  "proxy": "",
+  "routes": [],
+  "cache": {
+    "enabled": true,
+    "directory": "./cache",
+    "maxTotalSizeMB": 0,
+    "minFileSizeKB": 0,
+    "maxFileSizeKB": 0,
+    "cacheAuth": false,
+    "excludeExtensions": ["html", "js", "css", "json", "xml"]
+  },
+  "logging": {
+    "level": "info",
+    "format": "text",
+    "output": "stdout"
+  }
+}
+```
 
 ### Configuration Precedence
 
-As an alternative to flags, all configuration options can be set using environment variables prefixed with `PRXY_`.
+Configuration values are loaded from multiple sources (highest to lowest priority):
 
-It is important to understand the configuration precedence order:
+1. **Command-line flags**
+2. **Environment variables** (`PRXY_*` prefix)
+3. **Configuration file** (`./cache/prxy.json`)
+4. **Default values**
 
-1. **Command-line flags** (Highest priority)
-2. **Environment variables**
-3. **Default values** (Lowest priority)
+### CLI Flags
 
-This means a flag will always override the value of an environment variable if both are defined. Environment variables are ideal for establishing a base configuration, especially in containerized environments or CI/CD pipelines, while flags are useful for overriding that configuration for a specific execution.
+| Flag | Environment Variable | Description | Default |
+|------|---------------------|-------------|---------|
+| `--config`, `-c` | `PRXY_CONFIG` | Config file path | `./cache/prxy.json` |
+| `--target`, `-t` | `PRXY_TARGET` | Target service URL | N/A |
+| `--port`, `-P` | `PRXY_PORT` | Port to listen on | N/A |
+| `--proxy`, `-x` | `PRXY_PROXY` | Outbound HTTP proxy URL | Direct connection |
+| `--host`, `-H` | `PRXY_HOST` | Host to listen on | `0.0.0.0` |
+| `--cache` | `PRXY_CACHE` | Enable caching | `true` |
+| `--clear-cache` | N/A | Clear cache and exit | `false` |
+| `--yes` | `PRXY_YES` | Auto-confirm cache clearing | `false` |
+| `--log-level`, `-l` | `PRXY_LOG_LEVEL` | Log level (debug/info/warn/error) | `info` |
+| `--log-format`, `-f` | `PRXY_LOG_FORMAT` | Log format (text/json) | `text` |
+| `--log-output`, `-o` | `PRXY_LOG_OUTPUT` | Log output (stdout/stderr/file) | `stdout` |
 
-## Contributing
+**Note:** `--target` and `--port` add additional routes instead of replacing existing ones. Duplicate ports are automatically skipped with a warning.
 
-Contributions are welcome! Please open an issue or submit a pull request for any bug fixes or enhancements.
+## Caching
 
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature-branch`).
-3. Commit your changes (`git commit -am 'Add new feature'`).
-4. Push to the branch (`git push origin feature-branch`).
-5. Open a Pull Request.
+### Cache Configuration
 
-## Acknowledgements
+Cache behavior is controlled via the `cache` section in the configuration file:
 
-* The `prxy` logo was adapted from the amazing [free-gophers-pack](https://github.com/MariaLetta/free-gophers-pack) created by [Maria Letta](https://github.com/MariaLetta).
+- **enabled**: Enable or disable caching
+- **directory**: Storage directory for cached files
+- **maxTotalSizeMB**: Maximum total cache size (0 = no limit, LRU eviction enabled when > 0)
+- **minFileSizeKB**: Minimum file size to cache (0 = no limit)
+- **maxFileSizeKB**: Maximum file size to cache (0 = no limit)
+- **cacheAuth**: Whether to cache authenticated requests
+- **excludeExtensions**: File extensions to exclude from caching
+
+### Cache Management
+
+View cache statistics:
+
+```bash
+# Cache statistics are automatically logged
+# Check response headers for cache status:
+# X-Cache: HIT     - Response from cache
+# X-Cache: MISS    - Response forwarded to target
+# X-Cache: BYPASS  - Request not cached (excluded by policy)
+```
+
+Clear cache:
+
+```bash
+# Interactive confirmation
+prxy --clear-cache
+
+# Skip confirmation
+prxy --clear-cache --yes
+```
+
+### Cache Storage
+
+Cached files are stored using URL paths for easy inspection:
+
+```
+cache/
+├── prxy.json          # Configuration file
+└── data/
+    ├── github.com/
+    │   └── releases/
+    │       └── file.tar.gz
+    └── api.example.com/
+        └── endpoint.json
+```
+
+### GitHub Releases Optimization
+
+GitHub releases downloads are automatically optimized with:
+- Efficient streaming cache writes
+- Automatic redirect following
+- Improved connection handling
+
+## Development
+
+### Build
+
+```bash
+make build              # Build for current platform
+make build-all          # Build for all platforms
+make dev                # Quick development build
+```
+
+### Test
+
+```bash
+make test               # Run all tests
+make test-cover         # Run tests with coverage
+./run_all_tests.sh      # Run integration tests
+```
+
+### Code Quality
+
+```bash
+make lint               # Run golangci-lint
+make fmt                # Format code
+make vet                # Run go vet
+```
+
+### Development Workflow
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## Architecture
+
+### Package Structure
+
+```
+internal/
+├── cache/      # HTTP caching layer with path-based storage
+├── config/     # Configuration management with file persistence
+├── logging/    # Structured logging wrapper around slog
+├── prxy/       # Core reverse proxy logic and batch management
+└── validation/ # URL and configuration validation
+```
+
+### Key Components
+
+- **PrxyManager**: Manages multiple proxy server instances
+- **Prxy**: Individual proxy server handling HTTP requests
+- **Cache**: HTTP response cache with streaming support
+- **Config**: Configuration loading and validation
+
+### Dependencies
+
+- Go 1.24.3 or later
+- Only one external dependency: `github.com/spf13/pflag`
 
 ## License
 

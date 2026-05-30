@@ -1,9 +1,8 @@
 // Package main is the entry point for the prxy application.
 //
-// It defines the command-line interface (CLI) using the urfave/cli library,
-// handles configuration loading from flags and environment variables, sets up
-// structured logging, and manages the lifecycle of the proxy server, including
-// graceful shutdown.
+// It defines the command-line interface (CLI) using the pflag library,
+// handles configuration loading from flags, sets up structured logging, and
+// manages the lifecycle of the proxy server, including graceful shutdown.
 
 package main
 
@@ -16,103 +15,251 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Madh93/prxy/internal/cache"
 	"github.com/Madh93/prxy/internal/config"
 	"github.com/Madh93/prxy/internal/logging"
 	"github.com/Madh93/prxy/internal/prxy"
+	"github.com/Madh93/prxy/internal/stats"
 	"github.com/Madh93/prxy/internal/version"
-	"github.com/urfave/cli/v3"
+	"github.com/spf13/pflag"
+)
+
+var (
+	// Target/Proxy flags
+	targetFlag = pflag.StringP("target", "t", "", "target service URL (required for single-target mode, optional for batch mode)")
+	proxyFlag  = pflag.StringP("proxy", "x", "", "outbound HTTP proxy URL (empty = direct connection)")
+	portFlag   = pflag.IntP("port", "P", 0, "port to listen on (required for single-target mode, optional for batch mode)")
+
+	// Server config
+	hostFlag = pflag.StringP("host", "H", "", "host to listen on (default: 0.0.0.0)")
+
+	// Config file
+	configFlag = pflag.StringP("config", "c", "./cache/prxy.json", "config file path")
+
+	// Cache flags
+	cacheFlag      = pflag.Bool("cache", false, "enable caching")
+	clearCacheFlag = pflag.Bool("clear-cache", false, "clear all cached data and exit")
+	yesFlag        = pflag.Bool("yes", false, "auto-confirm cache clearing (skip prompt)")
+
+	// Logging flags
+	logLevelFlag  = pflag.StringP("log-level", "l", "", "set log level")
+	logOutputFlag = pflag.StringP("log-output", "o", "", "set log output")
+
+	// Version flag
+	showVersion = pflag.BoolP("version", "v", false, "show version information and exit")
+
+	// Summary flag
+	showSummary = pflag.BoolP("summary", "s", false, "show statistics summary and exit")
 )
 
 func init() {
-	cli.VersionPrinter = func(cmd *cli.Command) {
-		//nolint:errcheck
-		fmt.Fprintf(cmd.Root().Writer, "%s %s\n", cmd.Root().Name, cmd.Root().Version)
+	// Set custom usage function
+	pflag.Usage = printUsage
+}
+
+// printUsage displays custom help text with examples
+func printUsage() {
+	fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", config.AppName)
+	fmt.Fprintln(os.Stderr, "Forwards HTTP requests to a target (optionally via an external proxy)")
+	fmt.Fprintln(os.Stderr, "\nOptions:")
+	pflag.PrintDefaults()
+	fmt.Fprintln(os.Stderr, "\nExamples:")
+	fmt.Fprintln(os.Stderr, "  # Single target mode")
+	fmt.Fprintln(os.Stderr, "  prxy --target https://example.com --proxy http://proxy:8080 --port 8080")
+	fmt.Fprintln(os.Stderr, "\n  # Batch mode (from config file)")
+	fmt.Fprintln(os.Stderr, "  prxy --proxy http://proxy:8080")
+	fmt.Fprintln(os.Stderr, "\n  # Clear cache")
+	fmt.Fprintln(os.Stderr, "  prxy --clear-cache --yes")
+}
+
+// printVersion displays version information
+func printVersion() {
+	fmt.Printf("%s %s\n", config.AppName, version.Get().String())
+}
+
+// printSummary displays statistics summary
+func printSummary() {
+	// Get config file path
+	configPath := "./cache/prxy.json"
+	if *configFlag != "" {
+		configPath = *configFlag
 	}
+
+	// Load config to get statistics
+	appConfig, err := config.LoadAppConfig(configPath)
+	if err != nil {
+		// Try loading from stats file as fallback
+		statsFile := "./prxy_stats.json"
+		if err := stats.PrintSummary(statsFile); err != nil {
+			fmt.Fprintf(os.Stderr, "No statistics found. Run prxy with cache enabled first.\n")
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Check if summary exists
+	if appConfig.Summary == nil {
+		fmt.Fprintf(os.Stderr, "No statistics found. Run prxy with cache enabled first.\n")
+		os.Exit(1)
+	}
+
+	// Print summary from config
+	stats.PrintAllStats(appConfig.Summary)
 }
 
 // main defines the CLI, initializes the configuration, sets up logging,
 // and starts the application.
 func main() {
-	// More info at: https://cli.urfave.org/v3/getting-started/
-	// TODO: flag validations (https://github.com/urfave/cli/issues/2132)
-	cmd := &cli.Command{
-		Name:                  config.AppName,
-		Usage:                 "Forwards HTTP requests to a target via an external proxy",
-		Version:               version.Get().String(),
-		Suggest:               true,
-		EnableShellCompletion: true,
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "target", Required: true, Usage: "target service URL", Sources: cli.EnvVars("PRXY_TARGET"), Aliases: []string{"t"}},
-			&cli.StringFlag{Name: "proxy", Required: true, Usage: "outbound HTTP Proxy URL", Sources: cli.EnvVars("PRXY_PROXY"), Aliases: []string{"x"}},
-			&cli.StringFlag{Name: "host", Value: config.Defaults.Host, Usage: "host to listen on", Sources: cli.EnvVars("PRXY_HOST"), Aliases: []string{"H"}},
-			&cli.IntFlag{Name: "port", Value: config.Defaults.Port, Usage: "port to listen on", DefaultText: "random", Sources: cli.EnvVars("PRXY_PORT"), Aliases: []string{"P"}},
-			&cli.StringFlag{Name: "log-level", Value: string(config.Defaults.Logging.Level), Usage: fmt.Sprintf("set log level. Available options: %s", config.ValidLogLevels), Sources: cli.EnvVars("PRXY_LOG_LEVEL"), Aliases: []string{"l"}},
-			&cli.StringFlag{Name: "log-format", Value: string(config.Defaults.Logging.Format), Usage: fmt.Sprintf("set log format. Available options: %s", config.ValidLogFormats), Sources: cli.EnvVars("PRXY_LOG_FORMAT"), Aliases: []string{"f"}},
-			&cli.StringFlag{Name: "log-output", Value: string(config.Defaults.Logging.Output), Usage: fmt.Sprintf("set log output. Available options: %s", config.ValidLogOutputs), Sources: cli.EnvVars("PRXY_LOG_OUTPUT"), Aliases: []string{"o"}},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			// Load configuration
-			cfg, err := config.New(cmd)
-			if err != nil {
-				return fmt.Errorf("failed to initialize configuration: %v", err)
-			}
+	// Parse flags
+	pflag.Parse()
 
-			// Setup logger
-			logger, err := logging.New(&cfg.Logging)
-			if err != nil {
-				return fmt.Errorf("failed to initialize logger: %v", err)
-			}
+	// Handle --version (early exit)
+	if *showVersion {
+		printVersion()
+		os.Exit(0)
+	}
 
-			logger.Debug("Configuration loaded successfully", "config", cfg)
+	// Handle --summary (early exit)
+	if *showSummary {
+		printSummary()
+		os.Exit(0)
+	}
 
-			// Setup prxy
-			logger.Info("Starting prxy...", version.Get().ToLogFields()...)
-			prxyServer, err := prxy.New(cfg, logger)
-			if err != nil {
-				return fmt.Errorf("failed to create proxy server: %v", err)
-			}
+	// Populate CLIFlags struct
+	flags := &config.CLIFlags{
+		Target:      *targetFlag,
+		Proxy:       *proxyFlag,
+		Port:        *portFlag,
+		Host:        *hostFlag,
+		ConfigPath:  *configFlag,
+		EnableCache: *cacheFlag,
+		LogLevel:    *logLevelFlag,
+		LogOutput:   *logOutputFlag,
+		ClearCache:  *clearCacheFlag,
+		Yes:         *yesFlag,
+	}
 
-			// Handling graceful shutdown with signals. Create a context that
-			// listens for the interrupt signal.
-			// More info at: https://henvic.dev/posts/signal-notify-context/
-			signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM) // TODO: https://pkg.go.dev/os/signal#hdr-Windows
-			defer stop()
+	// Handle --clear-cache (early exit)
+	if flags.ClearCache {
+		if err := clearCache(flags); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
-			// Run the server in a separate goroutine so that it doesn't block.
-			errChan := make(chan error, 1)
-			go func() {
-				logger.Info("Server starting to listen...", "address", prxyServer.Addr(), "target", cfg.Target, "proxy", cfg.Proxy)
-				errChan <- prxyServer.Run()
-			}()
+	// Load configuration
+	cfg, err := config.New(flags)
+	if err != nil {
+		log.Fatalf("Failed to initialize configuration: %v", err)
+	}
 
-			// Block until we receive a signal or the server exits with an error.
-			select {
-			case err := <-errChan:
-				if err != nil {
-					return fmt.Errorf("server stopped with an error: %v", err)
-				}
-				logger.Info("Server stopped gracefully.")
-			case <-signalCtx.Done():
-				stop() // Clean up the signal notifier.
-				logger.Info("Shutdown signal received. Shutting down gracefully...")
-				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				if err := prxyServer.Shutdown(shutdownCtx); err != nil {
-					return fmt.Errorf("error during graceful shutdown: %v", err)
-				}
-				logger.Info("All done! prxy has been shut down.")
-			}
+	// Save CLI parameters to config file
+	configPath := flags.ConfigPath
+	if configPath == "" {
+		configPath = "./cache/prxy.json"
+	}
+	if err := config.UpdateAndSaveAppConfig(configPath, flags, cfg); err != nil {
+		// Log warning but don't fail - the server can still run
+		fmt.Printf("Warning: failed to save config file: %v\n", err)
+	}
 
-			// Cleanly close the logger before exiting.
-			if cerr := logger.Close(); cerr != nil {
-				return fmt.Errorf("failed to close log file (%s): %v", cfg.Logging.Path, cerr)
-			}
+	// Setup logger
+	logger, err := logging.New(&cfg.Logging)
+	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
 
+	logger.Debug("Configuration loaded successfully", "config", cfg)
+
+	// Start prxy in batch mode (always use PrxyManager now)
+	logger.Info("Starting prxy...", "routes", len(cfg.Routes))
+	manager, err := prxy.NewPrxyManager(cfg, logger, configPath)
+	if err != nil {
+		log.Fatalf("Failed to create proxy manager: %v", err)
+	}
+
+	// Start all servers
+	if err := manager.Start(); err != nil {
+		log.Fatalf("Failed to start servers: %v", err)
+	}
+
+	logger.Info("All servers started successfully")
+
+	// Wait for signal
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	<-signalCtx.Done()
+	stop()
+
+	logger.Info("Shutdown signal received. Shutting down gracefully...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := manager.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Error during graceful shutdown: %v", err)
+	}
+
+	logger.Info("All done! prxy has been shut down.")
+
+	// Print statistics summary
+	printSummary()
+
+	// Cleanly close the logger before exiting.
+	if cerr := logger.Close(); cerr != nil {
+		log.Fatalf("Failed to close log file (%s): %v", cfg.Logging.Path, cerr)
+	}
+}
+
+// clearCache handles the cache clearing operation.
+func clearCache(flags *config.CLIFlags) error {
+	// Get configuration file path
+	configPath := flags.ConfigPath
+	if configPath == "" {
+		configPath = "./cache/prxy.json"
+	}
+
+	// Load configuration
+	appConfig, err := config.LoadAppConfig(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %v", err)
+	}
+
+	// Check if cache is enabled
+	if !appConfig.Cache.Enabled {
+		return fmt.Errorf("cache is not enabled in configuration")
+	}
+
+	fmt.Printf("Preparing to clear cache...\n")
+	fmt.Printf("Cache directory: %s\n", appConfig.Cache.Directory)
+
+	// Get cache statistics
+	stats, err := cache.GetStats(appConfig.Cache.Directory)
+	if err != nil {
+		return fmt.Errorf("failed to get cache stats: %v", err)
+	}
+
+	fmt.Printf("Cache information:\n")
+	fmt.Printf("  Total files: %d\n", stats.TotalFiles)
+	fmt.Printf("  Total size: %.2f MB\n", stats.TotalSizeMB)
+
+	// Confirm unless --yes flag is provided
+	if !flags.Yes {
+		fmt.Printf("Are you sure you want to clear the cache? [y/N]: ")
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			fmt.Println("Cache clearing cancelled.")
 			return nil
-		},
+		}
 	}
 
-	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
+	// Clear the cache
+	fmt.Println("Clearing cache...")
+	if err := cache.Clear(appConfig.Cache.Directory); err != nil {
+		return fmt.Errorf("failed to clear cache: %v", err)
 	}
+
+	fmt.Println("Cache cleared successfully.")
+	return nil
 }

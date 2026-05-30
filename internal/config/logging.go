@@ -10,16 +10,12 @@ import (
 // LogLevel defines the severity of a log entry.
 type LogLevel string
 
-// LogFormat defines the output format of logs.
-type LogFormat string
-
 // LogOutput defines the destination for log entries.
 type LogOutput string
 
 // LoggingConfig represents a configuration for logging.
 type LoggingConfig struct {
 	Level  LogLevel  `koanf:"level"`  // Log level
-	Format LogFormat `koanf:"format"` // Log format
 	Output LogOutput `koanf:"output"` // Output destination
 	Path   string    `koanf:"path"`   // File path for logging output (if output is a file)
 }
@@ -33,10 +29,6 @@ const (
 	LogLevelError LogLevel = "error"
 	LogLevelFatal LogLevel = "fatal"
 
-	// Log formats.
-	LogFormatText LogFormat = "text"
-	LogFormatJSON LogFormat = "json"
-
 	// Output destinations.
 	LogOutputStdout LogOutput = "stdout"
 	LogOutputStderr LogOutput = "stderr"
@@ -46,7 +38,6 @@ const (
 // Define typed slices of allowed values.
 var (
 	ValidLogLevels  = []LogLevel{LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError, LogLevelFatal}
-	ValidLogFormats = []LogFormat{LogFormatText, LogFormatJSON}
 	ValidLogOutputs = []LogOutput{LogOutputStdout, LogOutputStderr, LogOutputFile}
 )
 
@@ -57,11 +48,6 @@ func (cfg LoggingConfig) Validate() error {
 	// Validate Level
 	if err := validation.Validate(cfg.Level, ValidLogLevels); err != nil {
 		errs = append(errs, fmt.Errorf("invalid log level: %v", err))
-	}
-
-	// Validate Format
-	if err := validation.Validate(cfg.Format, ValidLogFormats); err != nil {
-		errs = append(errs, fmt.Errorf("invalid log format: %v", err))
 	}
 
 	// Validate Output
