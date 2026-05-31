@@ -30,6 +30,7 @@ type IndexEntry struct {
 	Created  int64            `json:"created"`
 	Accessed int64            `json:"accessed"`
 	Size     int64            `json:"size"`
+	CRC32    uint32           `json:"crc32"`
 	Expires  int64            `json:"expires"`
 	Metadata ResponseMetadata `json:"metadata"`
 }
@@ -84,7 +85,7 @@ func (idx *CacheIndex) Save() error {
 }
 
 // Add adds a new entry to the index.
-func (idx *CacheIndex) Add(hash string, host string, urlPath string, filePath string, statusCode int, headers map[string]string, size int64) error {
+func (idx *CacheIndex) Add(hash string, host string, urlPath string, filePath string, statusCode int, headers map[string]string, size int64, crc32 uint32) error {
 	now := time.Now().Unix()
 
 	entry := &IndexEntry{
@@ -95,6 +96,7 @@ func (idx *CacheIndex) Add(hash string, host string, urlPath string, filePath st
 		Created:  now,
 		Accessed: now,
 		Size:     size,
+		CRC32:    crc32,
 		Expires:  0,
 		Metadata: ResponseMetadata{
 			StatusCode: statusCode,
@@ -181,12 +183,13 @@ func (idx *CacheIndex) Validate(cacheDir string) ([]string, error) {
 				invalidHashes = append(invalidHashes, string(k))
 				continue
 			}
-			info, statErr := os.Stat(filePath)
-			if statErr != nil {
+			if _, statErr := os.Stat(filePath); statErr != nil {
 				invalidHashes = append(invalidHashes, string(k))
 				continue
 			}
-			if info.Size() != entry.Size {
+			// Validate CRC32 instead of size
+			crc, crcErr := calculateFileCRC32(filePath)
+			if crcErr != nil || crc != entry.CRC32 {
 				invalidHashes = append(invalidHashes, string(k))
 			}
 		}

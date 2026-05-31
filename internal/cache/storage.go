@@ -2,6 +2,8 @@ package cache
 
 import (
 	"fmt"
+	"hash/crc32"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -10,6 +12,27 @@ import (
 const (
 	dataDir = "data"
 )
+
+// calculateFileCRC32 calculates the CRC32 checksum of a file.
+func calculateFileCRC32(filePath string) (uint32, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+
+	hasher := crc32.NewIEEE()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return 0, err
+	}
+
+	return hasher.Sum32(), nil
+}
+
+// calculateDataCRC32 calculates the CRC32 checksum of data bytes.
+func calculateDataCRC32(data []byte) uint32 {
+	return crc32.ChecksumIEEE(data)
+}
 
 // Storage manages cache storage on the file system.
 // Uses SHA256 hash as cache key, stores files using URL path, and maintains a single index file.
@@ -91,12 +114,13 @@ func (s *Storage) Get(hash string) (*CachedResponse, error) {
 	}
 
 	dataPath := s.getFilePath(entry.Host, entry.URLPath)
-	fileInfo, err := os.Stat(dataPath)
+
+	// Validate file integrity using CRC32
+	currentCRC32, err := calculateFileCRC32(dataPath)
 	if err != nil {
 		return nil, nil
 	}
-
-	if fileInfo.Size() != entry.Size {
+	if currentCRC32 != entry.CRC32 {
 		return nil, nil
 	}
 
@@ -142,8 +166,11 @@ func (s *Storage) Put(hash string, host string, urlPath string, response *Cached
 		return fmt.Errorf("failed to write data file: %v", err)
 	}
 
+	// Calculate CRC32 for integrity check
+	crc32Value := calculateDataCRC32(response.Body)
+
 	// Add entry to index
-	if err := s.index.Add(hash, host, urlPath, filePath, response.StatusCode, headers, int64(len(response.Body))); err != nil {
+	if err := s.index.Add(hash, host, urlPath, filePath, response.StatusCode, headers, int64(len(response.Body)), crc32Value); err != nil {
 		// Clean up data file if index update fails
 		os.Remove(dataPath)
 		return fmt.Errorf("failed to update index: %v", err)
@@ -166,8 +193,15 @@ func (s *Storage) PutFromDisk(hash string, host string, urlPath string, statusCo
 		}
 	}
 
+	// Calculate CRC32 for integrity check
+	dataPath := s.getFilePath(host, urlPath)
+	crc32Value, err := calculateFileCRC32(dataPath)
+	if err != nil {
+		return fmt.Errorf("failed to calculate CRC32: %v", err)
+	}
+
 	// Add entry to index
-	if err := s.index.Add(hash, host, urlPath, filePath, statusCode, headersMap, size); err != nil {
+	if err := s.index.Add(hash, host, urlPath, filePath, statusCode, headersMap, size, crc32Value); err != nil {
 		return fmt.Errorf("failed to update index: %v", err)
 	}
 
