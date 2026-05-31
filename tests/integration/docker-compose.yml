@@ -1,0 +1,96 @@
+services:
+  apt-tester:
+    image: debian:bookworm-slim
+    container_name: prxy-apt-test
+    environment:
+      - PROXY_HOST=host.docker.internal
+      - PROXY_PORT=18800
+    volumes:
+      - ./runners:/scripts:ro
+      - ./reporters/results:/results
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["bash", "/scripts/apt_test.sh"]
+    networks:
+      - prxy-test
+
+  # pip-tester:
+  #   image: python:3.12-slim
+  #   container_name: prxy-pip-test
+  #   environment:
+  #     - PROXY_HOST=host.docker.internal
+  #     - PROXY_PORT=18800
+  #   volumes:
+  #     - ./runners:/scripts:ro
+  #     - ./reporters/results:/results
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   entrypoint: ["bash", "/scripts/pip_test.sh"]
+  #   networks:
+  #     - prxy-test
+
+  go-tester:
+    image: prxy-test-env:latest
+    container_name: prxy-go-test
+    environment:
+      - PROXY_HOST=host.docker.internal
+      - GO_PORT=18803
+    volumes:
+      - ./runners:/scripts:ro
+      - ./reporters/results:/results
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /tmp/gotest
+    entrypoint: ["bash", "/scripts/go_test.sh"]
+    networks:
+      - prxy-test
+
+  npm-tester:
+    image: prxy-test-env:latest
+    container_name: prxy-npm-test
+    environment:
+      - PROXY_HOST=host.docker.internal
+      - NPM_PORT=18802
+    volumes:
+      - ./runners:/scripts:ro
+      - ./reporters/results:/results
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["bash", "/scripts/npm_test.sh"]
+    networks:
+      - prxy-test
+
+  cargo-tester:
+    image: prxy-test-env:latest
+    container_name: prxy-cargo-test
+    environment:
+      - PROXY_HOST=host.docker.internal
+      - PROXY_PORT=18800
+    volumes:
+      - ./runners:/scripts:ro
+      - ./reporters/results:/results
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    working_dir: /tmp/cargotest
+    entrypoint: ["bash", "/scripts/cargo_test.sh"]
+    networks:
+      - prxy-test
+
+  github-tester:
+    image: prxy-test-env:latest
+    container_name: prxy-github-test
+    environment:
+      - PROXY_HOST=host.docker.internal
+      - GITHUB_PORT=18801
+    volumes:
+      - ./runners:/scripts:ro
+      - ./reporters/results:/results
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["bash", "/scripts/github_test.sh"]
+    networks:
+      - prxy-test
+
+networks:
+  prxy-test:
+    driver: bridge
