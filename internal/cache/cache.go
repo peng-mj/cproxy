@@ -69,12 +69,9 @@ func (c *Cache) Delete(key string) error {
 
 // GetStats returns cache statistics.
 func (c *Cache) GetStats() *CacheStats {
-	// Get current file stats from storage
-	fileStats, err := GetStats(c.config.Directory)
-	if err == nil {
-		c.stats.TotalFiles = fileStats.TotalFiles
-		c.stats.TotalSizeMB = fileStats.TotalSizeMB
-	}
+	fileStats := c.storage.GetStats()
+	c.stats.TotalFiles = fileStats.TotalFiles
+	c.stats.TotalSizeMB = fileStats.TotalSizeMB
 
 	return &CacheStats{
 		Hits:        atomic.LoadInt64(&c.stats.Hits),
@@ -86,7 +83,9 @@ func (c *Cache) GetStats() *CacheStats {
 
 // Close performs cleanup operations.
 func (c *Cache) Close() error {
-	// No resources to clean up currently
+	if c.storage != nil {
+		return c.storage.Close()
+	}
 	return nil
 }
 
@@ -177,12 +176,12 @@ func StreamResponse(resp *http.Response, w http.ResponseWriter, hash string, hos
 
 // GetSize returns the total cache size in bytes.
 func (c *Cache) GetSize() (int64, error) {
-	return GetCacheSize(c.config.Directory)
+	return c.storage.GetCacheSize(), nil
 }
 
 // GetSizeForHost returns the cache size for a specific host in bytes.
 func (c *Cache) GetSizeForHost(host string) (int64, error) {
-	return GetSizeForHost(c.config.Directory, host)
+	return c.storage.GetSizeForHost(host), nil
 }
 
 // EvictLRU removes least recently used items to free up space.

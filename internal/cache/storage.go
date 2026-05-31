@@ -203,55 +203,72 @@ func (s *Storage) Delete(hash string) error {
 func GetStats(cacheDir string) (*CacheStats, error) {
 	stats := &CacheStats{}
 
-	// Load index to get accurate stats
 	index, err := NewCacheIndex(cacheDir)
 	if err != nil {
-		// If index doesn't exist or is corrupted, count files manually
 		dataPath := filepath.Join(cacheDir, dataDir)
 		err := filepath.Walk(dataPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-
-			// Skip directories
 			if info.IsDir() {
 				return nil
 			}
-
-			// Count files and size
 			stats.TotalFiles++
 			stats.TotalSizeMB += float64(info.Size()) / (1024 * 1024)
-
 			return nil
 		})
-
 		if err != nil && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("failed to walk cache directory: %v", err)
 		}
-
 		return stats, nil
 	}
+	defer index.Close()
 
-	// Use index for accurate stats
 	stats.TotalFiles = int64(index.Count())
 	stats.TotalSizeMB = float64(index.TotalSize()) / (1024 * 1024)
 
 	return stats, nil
 }
 
+// GetStats returns cache statistics using the existing index.
+func (s *Storage) GetStats() *CacheStats {
+	stats := &CacheStats{}
+	stats.TotalFiles = int64(s.index.Count())
+	stats.TotalSizeMB = float64(s.index.TotalSize()) / (1024 * 1024)
+	return stats
+}
+
+// GetCacheSize returns the total size of the cache in bytes using the existing index.
+func (s *Storage) GetCacheSize() int64 {
+	return s.index.TotalSize()
+}
+
+// GetSizeForHost returns the total cache size for a specific host in bytes using the existing index.
+func (s *Storage) GetSizeForHost(host string) int64 {
+	return s.index.TotalSizeForHost(host)
+}
+
+// Close closes the storage and releases resources.
+func (s *Storage) Close() error {
+	if s.index != nil {
+		return s.index.Close()
+	}
+	return nil
+}
+
 // Clear removes all cached data.
 func Clear(cacheDir string) error {
 	dataPath := filepath.Join(cacheDir, dataDir)
-	indexPath := filepath.Join(cacheDir, indexFileName)
+	dbPath := filepath.Join(cacheDir, dbFileName)
 
 	// Remove data directory
 	if err := os.RemoveAll(dataPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove data directory: %v", err)
 	}
 
-	// Remove index file
-	if err := os.Remove(indexPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove index file: %v", err)
+	// Remove index database
+	if err := os.Remove(dbPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove index database: %v", err)
 	}
 
 	// Recreate empty data directory
@@ -264,10 +281,8 @@ func Clear(cacheDir string) error {
 
 // GetCacheSize returns the total size of the cache in bytes.
 func GetCacheSize(cacheDir string) (int64, error) {
-	// Load index to get accurate size
 	index, err := NewCacheIndex(cacheDir)
 	if err != nil {
-		// Fallback to file system scan
 		var size int64
 		dataPath := filepath.Join(cacheDir, dataDir)
 		err := filepath.Walk(dataPath, func(path string, info os.FileInfo, err error) error {
@@ -279,23 +294,20 @@ func GetCacheSize(cacheDir string) (int64, error) {
 			}
 			return nil
 		})
-
 		if err != nil && !os.IsNotExist(err) {
 			return 0, err
 		}
-
 		return size, nil
 	}
+	defer index.Close()
 
 	return index.TotalSize(), nil
 }
 
 // GetSizeForHost returns the total cache size for a specific host in bytes.
 func GetSizeForHost(cacheDir string, host string) (int64, error) {
-	// Load index to get accurate size
 	index, err := NewCacheIndex(cacheDir)
 	if err != nil {
-		// Fallback to file system scan
 		var size int64
 		dataPath := filepath.Join(cacheDir, dataDir, sanitizePath(host))
 		err := filepath.Walk(dataPath, func(path string, info os.FileInfo, err error) error {
@@ -307,13 +319,12 @@ func GetSizeForHost(cacheDir string, host string) (int64, error) {
 			}
 			return nil
 		})
-
 		if err != nil && !os.IsNotExist(err) {
 			return 0, err
 		}
-
 		return size, nil
 	}
+	defer index.Close()
 
 	return index.TotalSizeForHost(host), nil
 }

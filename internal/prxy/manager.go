@@ -65,7 +65,7 @@ func NewPrxyManager(cfg *config.Config, logger *logging.Logger, configPath strin
 // createServerForRoute creates a server for a single route.
 func (pm *PrxyManager) createServerForRoute(route validation.RouteConfig, cache *cache.Cache) (*Prxy, error) {
 	// Create server for this route
-	server, err := New(pm.cfg, route.Target, route.Port, pm.logger, pm.statsCollector)
+	server, err := New(pm.cfg, route.Target, route.Port, pm.logger, pm.statsCollector, cache)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create server for port %d: %v", route.Port, err)
 	}
@@ -118,6 +118,13 @@ func (pm *PrxyManager) Shutdown(ctx context.Context) error {
 	var errors []error
 	for err := range errs {
 		errors = append(errors, err)
+	}
+
+	// Close cache after all servers are shut down
+	if pm.cache != nil {
+		if cerr := pm.cache.Close(); cerr != nil {
+			pm.logger.Error("Failed to close cache", "error", cerr)
+		}
 	}
 
 	if len(errors) > 0 {

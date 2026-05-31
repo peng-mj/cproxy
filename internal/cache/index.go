@@ -1,36 +1,37 @@
 package cache
 
 import (
-	"encoding/json"
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
+
+	bolt "go.etcd.io/bbolt"
 )
 
 const (
-	indexFileName = "cache_index.json"
+	dbFileName    = "cache_index.db"
+	entriesBucket = "entries"
 )
 
 // CacheIndex maintains the mapping between cache keys and cached files.
 type CacheIndex struct {
-	mu       sync.RWMutex
-	filePath string
-	entries  map[string]*IndexEntry // hash -> entry
+	db *bolt.DB
 }
 
 // IndexEntry represents a single cache entry in the index.
 type IndexEntry struct {
-	Hash     string           `json:"hash"`     // SHA256 hash key
-	Host     string           `json:"host"`     // Host for cache isolation (not in hash)
-	URLPath  string           `json:"urlPath"`  // Original URL path
-	FilePath string           `json:"filePath"` // Relative path to cached file
-	Created  int64            `json:"created"`  // Creation timestamp
-	Accessed int64            `json:"accessed"` // Last access timestamp
-	Size     int64            `json:"size"`     // File size in bytes
-	Expires  int64            `json:"expires"`  // Expiration timestamp (0 = never)
-	Metadata ResponseMetadata `json:"metadata"` // Response metadata
+	Hash     string           `json:"hash"`
+	Host     string           `json:"host"`
+	URLPath  string           `json:"urlPath"`
+	FilePath string           `json:"filePath"`
+	Created  int64            `json:"created"`
+	Accessed int64            `json:"accessed"`
+	Size     int64            `json:"size"`
+	Expires  int64            `json:"expires"`
+	Metadata ResponseMetadata `json:"metadata"`
 }
 
 // ResponseMetadata contains HTTP response metadata.
@@ -39,122 +40,54 @@ type ResponseMetadata struct {
 	Headers    map[string]string `json:"headers"`
 }
 
-// NewCacheIndex creates a new cache index.
-func NewCacheIndex(cacheDir string) (*CacheIndex, error) {
-	indexFilePath := filepath.Join(cacheDir, indexFileName)
-
-	index := &CacheIndex{
-		filePath: indexFilePath,
-		entries:  make(map[string]*IndexEntry),
-	}
-
-	// Load existing index if it exists
-	if err := index.Load(); err != nil {
-		// If index doesn't exist, create empty index
-		if os.IsNotExist(err) {
-			return index, nil
-		}
-		return nil, fmt.Errorf("failed to load cache index: %v", err)
-	}
-
-	return index, nil
+func init() {
+	gob.Register(IndexEntry{})
+	gob.Register(ResponseMetadata{})
 }
 
-// Load loads the index from disk.
-func (idx *CacheIndex) Load() error {
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
+// NewCacheIndex creates a new cache index backed by bbolt.
+func NewCacheIndex(cacheDir string) (*CacheIndex, error) {
+	dbPath := filepath.Join(cacheDir, dbFileName)
 
-	file, err := os.Open(idx.filePath)
+	db, err := bolt.Open(dbPath, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %v", err)
+	}
+
+	if err := db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte(entriesBucket))
 		return err
-	}
-	defer file.Close()
-
-	var data struct {
-		Entries []IndexEntry `json:"entries"`
-		Version int          `json:"version"`
+	}); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create bucket: %v", err)
 	}
 
-	if err := json.NewDecoder(file).Decode(&data); err != nil {
-		return fmt.Errorf("failed to decode index: %v", err)
-	}
+	return &CacheIndex{db: db}, nil
+}
 
-	// Rebuild entries map
-	idx.entries = make(map[string]*IndexEntry)
-	for _, entry := range data.Entries {
-		idx.entries[entry.Hash] = &entry
+// Close closes the underlying bbolt database.
+func (idx *CacheIndex) Close() error {
+	if idx.db != nil {
+		return idx.db.Close()
 	}
-
 	return nil
 }
 
-// Save saves the index to disk.
-func (idx *CacheIndex) Save() error {
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
-	return idx.saveLocked()
+// Load is a no-op for bbolt (data is loaded on demand).
+func (idx *CacheIndex) Load() error {
+	return nil
 }
 
-// saveLocked saves the index to disk without locking (must be called with lock held).
-func (idx *CacheIndex) saveLocked() error {
-	// Create temporary file with unique ID to avoid conflicts in parallel scenarios
-	tempPath := idx.filePath + ".tmp"
-	file, err := os.Create(tempPath)
-	if err != nil {
-		return fmt.Errorf("failed to create temp file: %v", err)
-	}
-
-	// Prepare data
-	data := struct {
-		Entries []IndexEntry `json:"entries"`
-		Version int          `json:"version"`
-	}{
-		Version: 1,
-		Entries: make([]IndexEntry, 0, len(idx.entries)),
-	}
-
-	for _, entry := range idx.entries {
-		data.Entries = append(data.Entries, *entry)
-	}
-
-	// Write to file
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(data); err != nil {
-		file.Close()
-		// Ignore remove errors - file might not exist or be locked by another process
-		_ = os.Remove(tempPath)
-		return fmt.Errorf("failed to encode index: %v", err)
-	}
-
-	// Sync to disk before closing
-	if err := file.Sync(); err != nil {
-		file.Close()
-		_ = os.Remove(tempPath)
-		return fmt.Errorf("failed to sync temp file: %v", err)
-	}
-
-	file.Close()
-
-	// Atomic rename
-	if err := os.Rename(tempPath, idx.filePath); err != nil {
-		// Clean up temp file if rename fails
-		_ = os.Remove(tempPath)
-		return fmt.Errorf("failed to rename temp file: %v", err)
-	}
-
+// Save is a no-op for bbolt (data is persisted on each write).
+func (idx *CacheIndex) Save() error {
 	return nil
 }
 
 // Add adds a new entry to the index.
 func (idx *CacheIndex) Add(hash string, host string, urlPath string, filePath string, statusCode int, headers map[string]string, size int64) error {
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
-
 	now := time.Now().Unix()
 
-	idx.entries[hash] = &IndexEntry{
+	entry := &IndexEntry{
 		Hash:     hash,
 		Host:     host,
 		URLPath:  urlPath,
@@ -162,153 +95,229 @@ func (idx *CacheIndex) Add(hash string, host string, urlPath string, filePath st
 		Created:  now,
 		Accessed: now,
 		Size:     size,
-		Expires:  0, // No expiration by default
+		Expires:  0,
 		Metadata: ResponseMetadata{
 			StatusCode: statusCode,
 			Headers:    headers,
 		},
 	}
 
-	return idx.saveLocked()
-}
-
-// Get retrieves an entry from the index.
-func (idx *CacheIndex) Get(hash string) (*IndexEntry, bool) {
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
-
-	entry, exists := idx.entries[hash]
-	if !exists {
-		return nil, false
+	data, err := encodeEntry(entry)
+	if err != nil {
+		return fmt.Errorf("failed to encode entry: %v", err)
 	}
 
-	entry.Accessed = time.Now().Unix()
+	return idx.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		return bucket.Put([]byte(hash), data)
+	})
+}
 
-	return entry, true
+// Get retrieves an entry from the index and updates its access time.
+func (idx *CacheIndex) Get(hash string) (*IndexEntry, bool) {
+	var entry *IndexEntry
+	var found bool
+
+	idx.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		data := bucket.Get([]byte(hash))
+		if data == nil {
+			return nil
+		}
+
+		decoded, decErr := decodeEntry(data)
+		if decErr != nil {
+			bucket.Delete([]byte(hash))
+			return nil
+		}
+
+		found = true
+		decoded.Accessed = time.Now().Unix()
+
+		encoded, encErr := encodeEntry(decoded)
+		if encErr != nil {
+			entry = decoded
+			return nil
+		}
+
+		if putErr := bucket.Put([]byte(hash), encoded); putErr != nil {
+			entry = decoded
+			return nil
+		}
+
+		entry = decoded
+		return nil
+	})
+
+	return entry, found
 }
 
 // Delete removes an entry from the index.
 func (idx *CacheIndex) Delete(hash string) error {
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
-
-	if _, exists := idx.entries[hash]; !exists {
-		return nil // Entry doesn't exist
-	}
-
-	delete(idx.entries, hash)
-	return idx.saveLocked()
+	return idx.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		return bucket.Delete([]byte(hash))
+	})
 }
 
 // Validate validates all entries in the index against actual files.
 func (idx *CacheIndex) Validate(cacheDir string) ([]string, error) {
-	idx.mu.RLock()
-	defer idx.mu.RUnlock()
-
 	var invalidHashes []string
 	dataDir := filepath.Join(cacheDir, "data")
 
-	for hash, entry := range idx.entries {
-		// Check if file exists
-		filePath := filepath.Join(dataDir, entry.FilePath)
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			// File doesn't exist, mark as invalid
-			invalidHashes = append(invalidHashes, hash)
-			continue
-		}
+	err := idx.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		c := bucket.Cursor()
 
-		// Check if file size matches
-		info, err := os.Stat(filePath)
-		if err != nil {
-			invalidHashes = append(invalidHashes, hash)
-			continue
-		}
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			entry, decErr := decodeEntry(v)
+			if decErr != nil {
+				invalidHashes = append(invalidHashes, string(k))
+				continue
+			}
 
-		if info.Size() != entry.Size {
-			// File size mismatch, mark as invalid
-			invalidHashes = append(invalidHashes, hash)
+			filePath := filepath.Join(dataDir, entry.FilePath)
+			if _, statErr := os.Stat(filePath); os.IsNotExist(statErr) {
+				invalidHashes = append(invalidHashes, string(k))
+				continue
+			}
+			info, statErr := os.Stat(filePath)
+			if statErr != nil {
+				invalidHashes = append(invalidHashes, string(k))
+				continue
+			}
+			if info.Size() != entry.Size {
+				invalidHashes = append(invalidHashes, string(k))
+			}
 		}
-	}
+		return nil
+	})
 
-	return invalidHashes, nil
+	return invalidHashes, err
 }
 
 // Cleanup removes invalid entries from the index.
 func (idx *CacheIndex) Cleanup(invalidHashes []string) error {
-	idx.mu.Lock()
-	defer idx.mu.Unlock()
-
-	for _, hash := range invalidHashes {
-		delete(idx.entries, hash)
-	}
-
-	return idx.saveLocked()
+	return idx.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		for _, hash := range invalidHashes {
+			if err := bucket.Delete([]byte(hash)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // GetAll returns all entries in the index.
 func (idx *CacheIndex) GetAll() map[string]*IndexEntry {
-	idx.mu.RLock()
-	defer idx.mu.RUnlock()
+	result := make(map[string]*IndexEntry)
 
-	result := make(map[string]*IndexEntry, len(idx.entries))
-	for k, v := range idx.entries {
-		result[k] = v
-	}
+	idx.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		c := bucket.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			entry, err := decodeEntry(v)
+			if err != nil {
+				continue
+			}
+			result[string(k)] = entry
+		}
+		return nil
+	})
 
 	return result
 }
 
 // Count returns the number of entries in the index.
 func (idx *CacheIndex) Count() int {
-	idx.mu.RLock()
-	defer idx.mu.RUnlock()
-
-	return len(idx.entries)
+	var count int
+	idx.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		c := bucket.Cursor()
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			count++
+		}
+		return nil
+	})
+	return count
 }
 
 // TotalSize returns the total size of all cached files.
 func (idx *CacheIndex) TotalSize() int64 {
-	idx.mu.RLock()
-	defer idx.mu.RUnlock()
-
 	var total int64
-	for _, entry := range idx.entries {
-		total += entry.Size
-	}
+	idx.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		c := bucket.Cursor()
 
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			entry, err := decodeEntry(v)
+			if err != nil {
+				continue
+			}
+			total += entry.Size
+		}
+		return nil
+	})
 	return total
 }
 
 // TotalSizeForHost returns the total size of cached files for a specific host.
 func (idx *CacheIndex) TotalSizeForHost(host string) int64 {
-	idx.mu.RLock()
-	defer idx.mu.RUnlock()
-
 	var total int64
-	for _, entry := range idx.entries {
-		if entry.Host == host {
-			total += entry.Size
-		}
-	}
+	idx.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		c := bucket.Cursor()
 
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			entry, err := decodeEntry(v)
+			if err != nil {
+				continue
+			}
+			if entry.Host == host {
+				total += entry.Size
+			}
+		}
+		return nil
+	})
 	return total
 }
 
 // GetLRUEntry returns the least recently used entry.
 func (idx *CacheIndex) GetLRUEntry() (*IndexEntry, bool) {
-	idx.mu.RLock()
-	defer idx.mu.RUnlock()
+	var oldest *IndexEntry
 
-	if len(idx.entries) == 0 {
+	idx.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(entriesBucket))
+		c := bucket.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			entry, err := decodeEntry(v)
+			if err != nil {
+				continue
+			}
+			if oldest == nil || entry.Accessed < oldest.Accessed {
+				oldest = entry
+			}
+		}
+		return nil
+	})
+
+	if oldest == nil {
 		return nil, false
 	}
-
-	var oldest *IndexEntry
-	for _, entry := range idx.entries {
-		if oldest == nil || entry.Accessed < oldest.Accessed {
-			oldest = entry
-		}
-	}
-
 	return oldest, true
+}
+
+func encodeEntry(entry *IndexEntry) ([]byte, error) {
+	var buf bytes.Buffer
+	err := gob.NewEncoder(&buf).Encode(entry)
+	return buf.Bytes(), err
+}
+
+func decodeEntry(data []byte) (*IndexEntry, error) {
+	var entry IndexEntry
+	err := gob.NewDecoder(bytes.NewReader(data)).Decode(&entry)
+	return &entry, err
 }

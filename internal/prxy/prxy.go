@@ -34,16 +34,17 @@ type Prxy struct {
 }
 
 // New creates and configures a new Prxy instance.
-func New(cfg *config.Config, target string, port int, logger *logging.Logger, statsCollector *stats.Collector) (*Prxy, error) {
+func New(cfg *config.Config, target string, port int, logger *logging.Logger, statsCollector *stats.Collector, sharedCache *cache.Cache) (*Prxy, error) {
 	// 0. Ensure to parse URLs
 	parsedTargetURL, err := url.Parse(target)
 	if err != nil {
 		return nil, fmt.Errorf("invalid target URL %q: %w", target, err)
 	}
 
-	// 1. Initialize cache if enabled
 	var c *cache.Cache
-	if cfg.Cache.Enabled {
+	if sharedCache != nil {
+		c = sharedCache
+	} else if cfg.Cache.Enabled {
 		c, err = cache.New(cfg.Cache)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize cache: %v", err)
