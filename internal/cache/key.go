@@ -80,6 +80,11 @@ func GenerateFilePath(urlPath string) string {
 
 // sanitizePath makes a string safe for use as a file path.
 func sanitizePath(path string) string {
+	return SanitizePath(path)
+}
+
+// SanitizePath makes a string safe for use as a file path (exported version).
+func SanitizePath(path string) string {
 	// Replace potentially dangerous characters
 	replacer := strings.NewReplacer(
 		"..", "", // Remove parent directory references

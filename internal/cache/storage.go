@@ -150,8 +150,10 @@ func (s *Storage) Put(hash string, host string, urlPath string, response *Cached
 		}
 	}
 
-	// Generate relative file path from URL path
-	filePath := GenerateFilePath(urlPath)
+	// Generate relative file path from URL path, including host for proper validation
+	safeHost := sanitizePath(host)
+	safePath := GenerateFilePath(urlPath)
+	filePath := filepath.Join(safeHost, safePath)
 
 	// Create full file path
 	dataPath := s.getFilePath(host, urlPath)

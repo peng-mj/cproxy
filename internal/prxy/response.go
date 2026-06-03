@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Madh93/prxy/internal/cache"
 )
@@ -36,6 +37,11 @@ func (ctx *RequestContext) handleCachedResponse(cached *cache.CachedResponse) {
 func (ctx *RequestContext) handleMemoryResponse(cached *cache.CachedResponse) {
 	for k, v := range cached.Headers {
 		if k == "Transfer-Encoding" || k == "Connection" {
+			continue
+		}
+		// Rewrite Date header to current time
+		if k == "Date" {
+			ctx.w.Header().Set(k, time.Now().UTC().Format(http.TimeFormat))
 			continue
 		}
 		for _, val := range v {
@@ -97,6 +103,11 @@ func (ctx *RequestContext) handleFileResponse(cached *cache.CachedResponse) {
 
 	for k, v := range cached.Headers {
 		if k == "Transfer-Encoding" || k == "Connection" {
+			continue
+		}
+		// Rewrite Date header to current time
+		if k == "Date" {
+			ctx.w.Header().Set(k, time.Now().UTC().Format(http.TimeFormat))
 			continue
 		}
 		for _, val := range v {

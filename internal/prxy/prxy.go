@@ -221,6 +221,16 @@ func (sw *streamingCacheWriter) WriteHeader(statusCode int) {
 		sw.statsCollector.RecordResponse(sw.targetHost, statusCode)
 	}
 
+	// Check if we should cache this response
+	mockResp := &http.Response{
+		StatusCode: statusCode,
+		Header:     sw.Header(),
+	}
+	if !cache.ShouldCacheResponse(mockResp, sw.cfg.Cache) {
+		sw.logger.Debug("Response not cacheable", "host", sw.host, "status", statusCode)
+		return
+	}
+
 	// Capture headers
 	for k, v := range sw.Header() {
 		if len(sw.headers[k]) == 0 {
@@ -239,8 +249,9 @@ func (sw *streamingCacheWriter) WriteHeader(statusCode int) {
 
 	// Create temporary file for caching
 	cacheDir := sw.cfg.Cache.Directory
+	safeHost := cache.SanitizePath(sw.host)
 	safePath := cache.GenerateFilePath(sw.request.URL.Path)
-	tempFilePath := filepath.Join(cacheDir, "data", safePath+".tmp")
+	tempFilePath := filepath.Join(cacheDir, "data", safeHost, safePath+".tmp")
 
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(tempFilePath), 0755); err != nil {
@@ -393,14 +404,16 @@ func (sw *streamingCacheWriter) Close() {
 		return
 	}
 
-	relativePath := cache.GenerateFilePath(sw.request.URL.Path)
+	safeHost := cache.SanitizePath(sw.host)
+	safePath := cache.GenerateFilePath(sw.request.URL.Path)
+	relativePath := filepath.Join(safeHost, safePath)
 	sw.logger.Debug("About to store in cache index", "key", cache.ShortKey(sw.key), "path", sw.request.URL.Path, "relativePath", relativePath, "size", fileInfo.Size())
 
 	if err := sw.cache.PutFromDisk(sw.key, sw.host, sw.request.URL.Path, sw.statusCode, sw.headers, relativePath, fileInfo.Size()); err != nil {
 		sw.logger.Error("Failed to store cache index", "error", err)
 		os.Remove(finalPath)
 	} else {
-		sw.logger.Info("Stored in cache", "key", cache.ShortKey(sw.key), "size", formatBytes(fileInfo.Size()), "path", sw.request.URL.Path)
+		sw.logger.Info("Stored in cache", "host", sw.host, "key", cache.ShortKey(sw.key), "size", formatBytes(fileInfo.Size()), "path", sw.request.URL.Path)
 
 		// Update cache size statistics
 		if sw.statsCollector != nil && sw.targetHost != "" {
@@ -450,7 +463,7 @@ func newCachingHandler(handler http.Handler, c *cache.Cache, logger *logging.Log
 		}
 
 		if cached != nil {
-			logger.Info("Cache hit", "key", cache.ShortKey(key), "path", r.URL.Path)
+			logger.Info("Cache hit", "host", targetHost, "key", cache.ShortKey(key), "path", r.URL.Path)
 			ctx.handleCachedResponse(cached)
 			return
 		}
@@ -529,11 +542,11 @@ func newCachingHandler(handler http.Handler, c *cache.Cache, logger *logging.Log
 				return
 			}
 
-			logger.Debug("Response cached after redirect follow", "key", cache.ShortKey(key), "status", resp.StatusCode)
+			logger.Debug("Response cached after redirect follow", "host", targetHost, "key", cache.ShortKey(key), "status", resp.StatusCode)
 			return
 		}
 
-		logger.Debug("Cache miss", "key", cache.ShortKey(key), "path", r.URL.Path)
+		logger.Debug("Cache miss", "host", targetHost, "key", cache.ShortKey(key), "path", r.URL.Path)
 		streamingWriter := newStreamingCacheWriter(w, r, key, c, logger, cfg, targetHost, targetHost, statsCollector)
 		defer streamingWriter.Close()
 
