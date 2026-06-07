@@ -598,3 +598,188 @@ func containsMiddle(s, substr string) bool {
 	}
 	return false
 }
+
+func TestIsExcludedPath(t *testing.T) {
+	tests := []struct {
+		name          string
+		path          string
+		excludedPaths []string
+		want          bool
+	}{
+		{
+			name:          "empty exclusion list",
+			path:          "/ubuntu/dists/focal/Release",
+			excludedPaths: []string{},
+			want:          false,
+		},
+		{
+			name:          "nil exclusion list",
+			path:          "/ubuntu/dists/focal/Release",
+			excludedPaths: nil,
+			want:          false,
+		},
+		{
+			name:          "exact prefix match",
+			path:          "/ubuntu/dists/focal/Release",
+			excludedPaths: []string{"/ubuntu/dists/"},
+			want:          true,
+		},
+		{
+			name:          "nested path match",
+			path:          "/ubuntu/dists/focal/main/binary-amd64/Packages.gz",
+			excludedPaths: []string{"/ubuntu/dists/"},
+			want:          true,
+		},
+		{
+			name:          "no match - different prefix",
+			path:          "/ubuntu/pool/main/f/file.tar.xz",
+			excludedPaths: []string{"/ubuntu/dists/"},
+			want:          false,
+		},
+		{
+			name:          "pip simple index",
+			path:          "/pypi/simple/requests/",
+			excludedPaths: []string{"/pypi/simple/"},
+			want:          true,
+		},
+		{
+			name:          "multiple prefixes - first matches",
+			path:          "/debian/dists/stable/Release",
+			excludedPaths: []string{"/ubuntu/dists/", "/debian/dists/"},
+			want:          true,
+		},
+		{
+			name:          "multiple prefixes - second matches",
+			path:          "/debian/dists/stable/Release",
+			excludedPaths: []string{"/ubuntu/dists/", "/debian/dists/"},
+			want:          true,
+		},
+		{
+			name:          "multiple prefixes - none matches",
+			path:          "/packages/requests-2.28.0.whl",
+			excludedPaths: []string{"/ubuntu/dists/", "/debian/dists/"},
+			want:          false,
+		},
+		{
+			name:          "root path exclusion",
+			path:          "/",
+			excludedPaths: []string{"/"},
+			want:          true,
+		},
+		{
+			name:          "partial prefix no match",
+			path:          "/ubuntu-dists/other",
+			excludedPaths: []string{"/ubuntu/dists/"},
+			want:          false,
+		},
+		{
+			name:          "exact file match",
+			path:          "/etc/resolv.conf",
+			excludedPaths: []string{"/etc/resolv.conf"},
+			want:          true,
+		},
+		{
+			name:          "exact file no match - different file",
+			path:          "/etc/hosts",
+			excludedPaths: []string{"/etc/resolv.conf"},
+			want:          false,
+		},
+		{
+			name:          "exact file no match - subpath not matched",
+			path:          "/etc/resolv.conf.bak",
+			excludedPaths: []string{"/etc/resolv.conf"},
+			want:          false,
+		},
+		{
+			name:          "mixed prefix and exact patterns - prefix match",
+			path:          "/ubuntu/dists/focal/Release",
+			excludedPaths: []string{"/etc/resolv.conf", "/ubuntu/dists/"},
+			want:          true,
+		},
+		{
+			name:          "mixed prefix and exact patterns - exact match",
+			path:          "/etc/resolv.conf",
+			excludedPaths: []string{"/ubuntu/dists/", "/etc/resolv.conf"},
+			want:          true,
+		},
+		{
+			name:          "mixed patterns - no match",
+			path:          "/var/log/syslog",
+			excludedPaths: []string{"/etc/resolv.conf", "/ubuntu/dists/"},
+			want:          false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsExcludedPath(tt.path, tt.excludedPaths)
+			if got != tt.want {
+				t.Errorf("IsExcludedPath(%q, %v) = %v, want %v", tt.path, tt.excludedPaths, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestShouldCacheRequest_ExcludePaths(t *testing.T) {
+	cfg := config.CacheConfig{
+		ExcludeExtensions: []string{},
+		ExcludePaths:      []string{"/ubuntu/dists/", "/pypi/simple/", "/etc/resolv.conf"},
+	}
+
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		want   bool
+	}{
+		{
+			name:   "path not excluded",
+			method: "GET",
+			path:   "/ubuntu/pool/main/f/file.tar.xz",
+			want:   true,
+		},
+		{
+			name:   "prefix excluded - ubuntu dists",
+			method: "GET",
+			path:   "/ubuntu/dists/focal/Release",
+			want:   false,
+		},
+		{
+			name:   "prefix excluded - pypi simple",
+			method: "GET",
+			path:   "/pypi/simple/requests/",
+			want:   false,
+		},
+		{
+			name:   "exact file excluded",
+			method: "GET",
+			path:   "/etc/resolv.conf",
+			want:   false,
+		},
+		{
+			name:   "exact file no match - prefix free-ride",
+			method: "GET",
+			path:   "/etc/resolv.conf.backup",
+			want:   true,
+		},
+		{
+			name:   "POST not cached regardless",
+			method: "POST",
+			path:   "/ubuntu/pool/main/f/file.tar.xz",
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &http.Request{
+				Method: tt.method,
+				URL:    &url.URL{Path: tt.path},
+			}
+			got := ShouldCacheRequest(req, cfg)
+			if got != tt.want {
+				t.Errorf("ShouldCacheRequest(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}

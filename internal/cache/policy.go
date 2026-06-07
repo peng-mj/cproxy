@@ -19,12 +19,37 @@ func ShouldCacheRequest(req *http.Request, cacheConfig config.CacheConfig) bool 
 		return false
 	}
 
+	// Check URL path exclusion (prefix or exact)
+	if IsExcludedPath(req.URL.Path, cacheConfig.ExcludePaths) {
+		return false
+	}
+
 	// Don't cache requests with Range header
 	if req.Header.Get("Range") != "" {
 		return false
 	}
 
 	return true
+}
+
+// IsExcludedPath checks if a URL path is excluded.
+// Patterns ending with "/" use prefix matching (exclude a directory).
+// Exact paths without trailing "/" use exact matching (exclude a single file).
+func IsExcludedPath(path string, excludedPaths []string) bool {
+	for _, pattern := range excludedPaths {
+		if strings.HasSuffix(pattern, "/") {
+			// Directory prefix pattern: match all paths under this prefix
+			if strings.HasPrefix(path, pattern) {
+				return true
+			}
+		} else {
+			// Exact file pattern: match only this specific path
+			if path == pattern {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ShouldCacheResponse determines if a response should be cached.

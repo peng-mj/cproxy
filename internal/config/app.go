@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Madh93/prxy/internal/stats"
 	"github.com/Madh93/prxy/internal/validation"
@@ -34,6 +35,7 @@ type CacheConfig struct {
 	MaxFileSizeKB     int      `json:"maxFileSizeKB"`     // Maximum response size to cache in KB
 	CacheAuth         bool     `json:"cacheAuth"`         // Cache authenticated requests
 	ExcludeExtensions []string `json:"excludeExtensions"` // File extensions to exclude from caching
+	ExcludePaths      []string `json:"excludePaths"`      // URL path prefixes to exclude from caching
 }
 
 // defaultAppConfig returns the default application configuration.
@@ -49,6 +51,7 @@ func defaultAppConfig() *AppConfig {
 			MaxFileSizeKB:     0,
 			CacheAuth:         false,
 			ExcludeExtensions: []string{"html", "js", "css", "json", "xml"},
+			ExcludePaths:      []string{},
 		},
 		Logging: LoggingConfig{
 			Level:  LogLevelInfo,
@@ -180,6 +183,15 @@ func (c *CacheConfig) Validate() error {
 	for _, ext := range c.ExcludeExtensions {
 		if ext == "" {
 			return fmt.Errorf("exclude extensions cannot contain empty strings")
+		}
+	}
+
+	for _, pattern := range c.ExcludePaths {
+		if pattern == "" {
+			return fmt.Errorf("exclude paths cannot contain empty strings")
+		}
+		if !strings.HasPrefix(pattern, "/") {
+			return fmt.Errorf("exclude path must start with '/': %q", pattern)
 		}
 	}
 
