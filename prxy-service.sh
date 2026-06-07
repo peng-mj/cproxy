@@ -1,6 +1,6 @@
 #!/bin/bash
 # prxy service management script for Linux
-# Usage: ./prxy-service.sh {start|stop|status}
+# Usage: ./prxy-service.sh {start|stop|status|restart|logs}
 
 set -e
 
@@ -12,7 +12,7 @@ cd "$SCRIPT_DIR"
 PRXY_BIN="$SCRIPT_DIR/prxy"
 PID_FILE="$SCRIPT_DIR/prxy.pid"
 LOG_FILE="$SCRIPT_DIR/prxy.log"
-DEFAULT_CONFIG="$HOME/.prxy/config.json"
+DEFAULT_CONFIG="$SCRIPT_DIR/cache/config.json"
 
 # Colors for output
 RED='\033[0;31m'
@@ -211,6 +211,22 @@ show_status() {
     fi
 }
 
+# Show/monitor logs
+show_logs() {
+    if [ ! -f "$LOG_FILE" ]; then
+        print_warn "Log file does not exist: $LOG_FILE"
+        print_info "The log file will be created when prxy starts"
+        exit 1
+    fi
+
+    print_info "Monitoring log file: $LOG_FILE"
+    print_info "Press Ctrl+C to stop monitoring"
+    echo ""
+
+    # Follow the log file
+    tail -f "$LOG_FILE"
+}
+
 # Main
 case "${1:-}" in
     start)
@@ -227,16 +243,20 @@ case "${1:-}" in
         sleep 1
         start_service
         ;;
+    logs)
+        show_logs
+        ;;
     *)
         echo "prxy service management script"
         echo ""
-        echo "Usage: $0 {start|stop|status|restart}"
+        echo "Usage: $0 {start|stop|status|restart|logs}"
         echo ""
         echo "Commands:"
         echo "  start   - Start prxy service"
         echo "  stop    - Stop prxy service"
         echo "  status  - Show service status"
         echo "  restart - Restart service"
+        echo "  logs    - Monitor log file in real-time (tail -f)"
         echo ""
         echo "Files:"
         echo "  PID file:  $PID_FILE"
