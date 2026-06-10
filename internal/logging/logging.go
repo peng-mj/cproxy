@@ -23,7 +23,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/Madh93/prxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/config"
 )
 
 // nopWriteCloser wraps an io.Writer with a no-op Close method.

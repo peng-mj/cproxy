@@ -3,7 +3,7 @@
 
 set -e
 
-IMAGE_NAME="prxy-test-env"
+IMAGE_NAME="scproxy-test-env"
 IMAGE_TAG="latest"
 
 cd "$(dirname "$0")"

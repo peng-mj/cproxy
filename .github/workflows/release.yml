@@ -1,4 +1,4 @@
-name: Release prxy
+name: Release scproxy
 
 on:
   push:

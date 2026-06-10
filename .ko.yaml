@@ -9,8 +9,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/Madh93/prxy/internal/version.appVersion=edge
-      - -X github.com/Madh93/prxy/internal/version.commitHash={{ .Env.COMMIT_HASH }}
+      - -X github.com/peng-mj/scproxy/internal/version.appVersion=edge
+      - -X github.com/peng-mj/scproxy/internal/version.commitHash={{ .Env.COMMIT_HASH }}
 
 defaultPlatforms:
   - linux/amd64

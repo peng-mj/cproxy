@@ -1,17 +1,22 @@
 <p align="center">
-  <img src="./docs/img/logo.png" alt="prxy logo" width="75%" height="75%>
+  <img src="./docs/img/logo.png" alt="scproxy logo" width="60%" height="60%">
 </p>
 <p align="center">
   </br>
-  <b>prxy</b> is a versatile HTTP reverse proxy written in <a href="https://go.dev/">Go</a> that supports batch proxy configuration, optional outbound proxy routing, automatic Host header rewriting, and intelligent HTTP response caching.
+  <b>scproxy</b> — A command-line HTTP reverse proxy with intelligent caching
 </p>
-<hr>
+<p align="center">
+  Forked from <a href="https://github.com/Madh93/prxy">Madh93/prxy</a> with enhanced features
+</p>
 
-[![Latest release](https://img.shields.io/github/v/tag/Madh93/prxy?label=Release)](https://github.com/Madh93/prxy/releases)
-[![Go Version](https://img.shields.io/badge/Go-1.24-blue)](https://go.dev/doc/install)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Madh93/prxy)](https://goreportcard.com/report/github.com/Madh93/prxy)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/Madh93/prxy/continuous-integration.yml?branch=main)](https://github.com/Madh93/prxy/actions)
-[![Go Reference](https://pkg.go.dev/badge/github.com/Madh93/prxy.svg)](https://pkg.go.dev/github.com/Madh93/prxy)
+<p align="center">
+  <i>scproxy stands for <b>Sieve Cache Proxy</b> — filtering and caching HTTP responses efficiently.</i>
+</p>
+
+[![Latest release](https://img.shields.io/github/v/tag/peng-mj/scproxy?label=Release)](https://github.com/peng-mj/scproxy/releases)
+[![Go Version](https://img.dev/badge/Go-1.24-blue)](https://go.dev/doc/install)
+[![Go Report Card](https://goreportcard.com/badge/github.com/peng-mj/scproxy)](https://goreportcard.com/report/github.com/peng-mj/scproxy)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/peng-mj/scproxy/continuous-integration.yml?branch=main)](https://github.com/peng-mj/scproxy/actions)
 [![License](https://img.shields.io/badge/License-MIT-brightgreen)](LICENSE)
 
 <p align="center">
@@ -20,94 +25,83 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#configuration">Configuration</a> •
   <a href="#caching">Caching</a> •
-  <a href="#development">Development</a> •
   <a href="#license">License</a>
   <br>
   <a href="README_CN.md">简体中文</a>
 </p>
 
+---
+
+## Overview
+
+**scproxy**(Sieve Cache Proxy) is a lightweight HTTP reverse proxy written in Go that helps you forward HTTP requests through an outbound proxy with intelligent response caching. It's designed for scenarios where you need to:
+- Route multiple services through different local ports
+- Forward traffic via an external HTTP proxy (e.g., corporate proxies, wireproxy, Squid)
+- Cache HTTP responses to reduce bandwidth and improve latency
+
+---
+
 ## Features
 
-### Core Functionality
+### Core
 
-- **Batch Proxy Configuration**: Run multiple proxy services simultaneously, each listening on a different port and forwarding to a different target URL
-- **Outbound Proxy Support**: Route all proxy traffic through an external HTTP proxy (e.g., wireproxy, Squid)
-- **Automatic Host Header Rewriting**: Ensures requests reach the correct destination service
-- **Graceful Shutdown**: Handles SIGTERM/SIGINT signals for clean shutdown
+- **Batch proxy mode** — Run multiple routes simultaneously on different ports
+- **Outbound proxy chaining** — Forward all traffic through an external HTTP proxy
+- **Automatic Host header rewriting** — Ensures requests reach the correct backend
+- **Graceful shutdown** — Clean handling of SIGTERM/SIGINT signals
 
-### Advanced Caching
+### Caching
 
-- **Path-Based Storage**: Cache files are stored using URL paths for easy inspection
-- **Streaming Cache Support**: Efficiently handle large files with streaming writes
-- **Range Request Support**: HTTP Range requests are fully supported for partial content delivery
-- **Configurable Cache Policies**: 
-  - File size limits (min/max)
-  - Total cache size limit
-  - Extension-based exclusions
-  - Authenticated request caching (optional)
-- **GitHub Releases Optimization**: Special handling for GitHub release downloads with improved performance
-- **Cache Statistics**: Track cache hits, misses, and storage usage
+- **Path-based storage** — Cache files mirror URL paths for easy inspection
+- **Streaming support** — Efficient handling of large files
+- **HTTP Range requests** — Full support for partial content delivery
+- **Configurable policies** — Size limits, extension exclusions, auth handling
+- **LRU eviction** — Automatic cache cleanup when size limit is reached
+- **Cache statistics** — Track hits, misses, and storage usage
 
-### Configuration Management
+### Configuration
 
-- **Multiple Configuration Sources**: CLI flags, environment variables, and config files
-- **Configuration Persistence**: Automatically saves settings to config file
-- **Flexible Route Management**: Add routes via CLI or config file
-- **Dynamic Route Addition**: Temporarily add routes without editing config file
+- **Multiple sources** — CLI flags, config files, and defaults
+- **Dynamic routes** — Add routes via CLI without editing config
+- **Auto-save** — CLI settings persist to config file
+
+---
 
 ## Installation
 
-### From Binary
-
-Download the latest binary from [releases](https://github.com/Madh93/prxy/releases):
+### Binary (Recommended)
 
 ```bash
-curl -L https://github.com/Madh93/prxy/releases/latest/download/prxy_$(uname -s)_$(uname -m).tar.gz | tar -xz -O prxy > /usr/local/bin/prxy
-chmod +x /usr/local/bin/prxy
+curl -L https://github.com/peng-mj/scproxy/releases/latest/download/scproxy_$(uname -s)_$(uname -m).tar.gz | tar -xz -O scproxy > /usr/local/bin/scproxy
+chmod +x /usr/local/bin/scproxy
 ```
 
 ### From Source
 
 ```bash
-go install github.com/Madh93/prxy@latest
+go install github.com/peng-mj/scproxy@latest
 ```
 
-### Docker
-
-```bash
-docker run --name prxy ghcr.io/madh93/prxy:latest --proxy http://proxy:8080
-```
-
-### Docker Compose
-
-```yaml
-services:
-  prxy:
-    image: ghcr.io/madh93/prxy:latest
-    restart: unless-stopped
-    volumes:
-      - ./config.json:/root/cache/prxy.json:ro
-      - ./cache:/root/cache
-    environment:
-      - PRXY_PROXY=http://proxy:8080
-```
+---
 
 ## Quick Start
 
-### Single Target Mode
+### Single Route
+
+Forward one target through an outbound proxy:
 
 ```bash
-prxy --target https://example.com --proxy http://localhost:8080 --port 8080
+scproxy --target https://example.com --proxy http://proxy:8080 --port 8080
 ```
 
-### Batch Mode (Recommended)
+### Batch Mode (Multiple Routes)
 
-Create a configuration file at `./cache/prxy.json`:
+Create a config at `./cache/scproxy.json`:
 
 ```json
 {
   "host": "0.0.0.0",
-  "proxy": "http://localhost:8080",
+  "proxy": "http://proxy:8080",
   "routes": [
     {"target": "https://github.com", "port": 8081},
     {"target": "https://gitlab.com", "port": 8082},
@@ -120,25 +114,25 @@ Create a configuration file at `./cache/prxy.json`:
 }
 ```
 
-Start the service:
+Then run:
 
 ```bash
-prxy
+scproxy
 ```
 
 ### Add Temporary Route
 
-Add a route via CLI without editing the config file:
-
 ```bash
-prxy --target https://httpbin.org --port 9999
+scproxy --target https://httpbin.org --port 9999
 ```
+
+---
 
 ## Configuration
 
-### Configuration File
+### Config File
 
-The configuration file is automatically created at `./cache/prxy.json` on first run. The default structure:
+Created automatically at `./cache/scproxy.json` on first run:
 
 ```json
 {
@@ -152,7 +146,8 @@ The configuration file is automatically created at `./cache/prxy.json` on first 
     "minFileSizeKB": 0,
     "maxFileSizeKB": 0,
     "cacheAuth": false,
-    "excludeExtensions": ["html", "js", "css", "json", "xml"]
+    "excludeExtensions": ["html", "js", "css", "json", "xml"],
+    "excludePaths": []
   },
   "logging": {
     "level": "info",
@@ -162,76 +157,100 @@ The configuration file is automatically created at `./cache/prxy.json` on first 
 }
 ```
 
-### Configuration Precedence
+### Priority
 
-Configuration values are loaded from multiple sources (highest to lowest priority):
+1. CLI flags (highest)
+2. Config file
+3. Defaults (lowest)
 
-1. **Command-line flags**
-2. **Environment variables** (`PRXY_*` prefix)
-3. **Configuration file** (`./cache/prxy.json`)
-4. **Default values**
+### CLI Options
 
-### CLI Flags
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--target`, `-t` | Target service URL | — |
+| `--port`, `-P` | Listen port | — |
+| `--proxy`, `-x` | Outbound proxy URL | Direct |
+| `--host`, `-H` | Listen host | 0.0.0.0 |
+| `--config`, `-c` | Config file path | ./cache/scproxy.json |
+| `--cache` | Enable caching | true |
+| `--clear-cache` | Clear cache and exit | — |
+| `--yes` | Skip confirmation | — |
+| `--summary`, `-s` | Show cache stats | — |
+| `--version`, `-v` | Show version | — |
+| `--log-level`, `-l` | Log level | info |
+| `--log-output`, `-o` | Log output | stdout |
 
-| Flag | Environment Variable | Description | Default |
-|------|---------------------|-------------|---------|
-| `--config`, `-c` | `PRXY_CONFIG` | Config file path | `./cache/prxy.json` |
-| `--target`, `-t` | `PRXY_TARGET` | Target service URL | N/A |
-| `--port`, `-P` | `PRXY_PORT` | Port to listen on | N/A |
-| `--proxy`, `-x` | `PRXY_PROXY` | Outbound HTTP proxy URL | Direct connection |
-| `--host`, `-H` | `PRXY_HOST` | Host to listen on | `0.0.0.0` |
-| `--cache` | `PRXY_CACHE` | Enable caching | `true` |
-| `--clear-cache` | N/A | Clear cache and exit | `false` |
-| `--yes` | `PRXY_YES` | Auto-confirm cache clearing | `false` |
-| `--log-level`, `-l` | `PRXY_LOG_LEVEL` | Log level (debug/info/warn/error) | `info` |
-| `--log-format`, `-f` | `PRXY_LOG_FORMAT` | Log format (text/json) | `text` |
-| `--log-output`, `-o` | `PRXY_LOG_OUTPUT` | Log output (stdout/stderr/file) | `stdout` |
-
-**Note:** `--target` and `--port` add additional routes instead of replacing existing ones. Duplicate ports are automatically skipped with a warning.
+---
 
 ## Caching
 
-### Cache Configuration
+### Cache Control
 
-Cache behavior is controlled via the `cache` section in the configuration file:
+| Setting | Description |
+|---------|-------------|
+| `enabled` | Enable/disable caching |
+| `directory` | Storage path |
+| `maxTotalSizeMB` | Total size limit (0 = unlimited, enables LRU when set) |
+| `minFileSizeKB` | Min file size to cache |
+| `maxFileSizeKB` | Max file size to cache |
+| `cacheAuth` | Cache authenticated requests |
+| `excludeExtensions` | File extensions to skip |
+| `excludePaths` | URL path patterns to skip |
 
-- **enabled**: Enable or disable caching
-- **directory**: Storage directory for cached files
-- **maxTotalSizeMB**: Maximum total cache size (0 = no limit, LRU eviction enabled when > 0)
-- **minFileSizeKB**: Minimum file size to cache (0 = no limit)
-- **maxFileSizeKB**: Maximum file size to cache (0 = no limit)
-- **cacheAuth**: Whether to cache authenticated requests
-- **excludeExtensions**: File extensions to exclude from caching
+### Path Exclusion
 
-### Cache Management
+`excludePaths` supports two modes:
 
-View cache statistics:
+| Pattern | Matches |
+|---------|---------|
+| `/ubuntu/dists/` | All paths under this directory (prefix) |
+| `/etc/resolv.conf` | Only this file (exact) |
+
+Rules:
+- Must start with `/`
+- Trailing `/` = prefix match (directory)
+- No trailing `/` = exact match (file)
+
+Example:
+
+```json
+{
+  "cache": {
+    "excludePaths": [
+      "/ubuntu/dists/",
+      "/pypi/simple/",
+      "/etc/resolv.conf"
+    ]
+  }
+}
+```
+
+### Management
+
+View stats:
 
 ```bash
-# Cache statistics are automatically logged
-# Check response headers for cache status:
-# X-Cache: HIT     - Response from cache
-# X-Cache: MISS    - Response forwarded to target
-# X-Cache: BYPASS  - Request not cached (excluded by policy)
+scproxy --summary
 ```
 
 Clear cache:
 
 ```bash
-# Interactive confirmation
-prxy --clear-cache
-
-# Skip confirmation
-prxy --clear-cache --yes
+scproxy --clear-cache          # Interactive
+scproxy --clear-cache --yes    # Skip confirmation
 ```
 
-### Cache Storage
+Response headers indicate cache status:
 
-Cached files are stored using URL paths for easy inspection:
+- `X-Cache: HIT` — Served from cache
+- `X-Cache: MISS` — Fetched from target
+- `X-Cache: BYPASS` — Not cached (excluded by policy)
+
+### Storage Structure
 
 ```
 cache/
-├── prxy.json          # Configuration file
+├── scproxy.json              # Config file
 └── data/
     ├── github.com/
     │   └── releases/
@@ -240,72 +259,19 @@ cache/
         └── endpoint.json
 ```
 
-### GitHub Releases Optimization
-
-GitHub releases downloads are automatically optimized with:
-- Efficient streaming cache writes
-- Automatic redirect following
-- Improved connection handling
+---
 
 ## Development
 
-### Build
-
 ```bash
-make build              # Build for current platform
-make build-all          # Build for all platforms
-make dev                # Quick development build
+make build          # Build for current platform
+make build-all      # Build for all platforms
+make test           # Run tests
+make lint           # Run linters
 ```
 
-### Test
-
-```bash
-make test               # Run all tests
-make test-cover         # Run tests with coverage
-./run_all_tests.sh      # Run integration tests
-```
-
-### Code Quality
-
-```bash
-make lint               # Run golangci-lint
-make fmt                # Format code
-make vet                # Run go vet
-```
-
-### Development Workflow
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and linting
-5. Submit a pull request
-
-## Architecture
-
-### Package Structure
-
-```
-internal/
-├── cache/      # HTTP caching layer with path-based storage
-├── config/     # Configuration management with file persistence
-├── logging/    # Structured logging wrapper around slog
-├── prxy/       # Core reverse proxy logic and batch management
-└── validation/ # URL and configuration validation
-```
-
-### Key Components
-
-- **PrxyManager**: Manages multiple proxy server instances
-- **Prxy**: Individual proxy server handling HTTP requests
-- **Cache**: HTTP response cache with streaming support
-- **Config**: Configuration loading and validation
-
-### Dependencies
-
-- Go 1.24.3 or later
-- Only one external dependency: `github.com/spf13/pflag`
+---
 
 ## License
 
-This project is licensed under the [MIT license](LICENSE).
+[MIT](LICENSE)

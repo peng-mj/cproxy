@@ -1,16 +1,16 @@
-# Prxy Cache Functionality Testing
+# Scproxy Cache Functionality Testing
 
 ## Test Overview
 
-We have created a comprehensive integration test script `scripts/test_cache.py` to verify prxy's cache functionality. This script uses the real Aliyun Ubuntu mirror source for testing.
+We have created a comprehensive integration test script `scripts/test_cache.py` to verify scproxy's cache functionality. This script uses the real Aliyun Ubuntu mirror source for testing.
 
 ## Test Content
 
 ### 1. Test Environment
 - **Target server**: https://mirrors.aliyun.com
 - **Proxy port**: 9091
-- **Test directory**: /tmp/prxy_test
-- **Cache directory**: /tmp/prxy_test/cache
+- **Test directory**: /tmp/scproxy_test
+- **Cache directory**: /tmp/scproxy_test/cache
 
 ### 2. Test Files
 - conntrack-tools_1.4.9.orig.tar.xz (452 KB)
@@ -38,7 +38,7 @@ Download different files to verify cache system can correctly handle multiple fi
 ## Running Tests
 
 ### Prerequisites
-1. Compiled prxy binary: `go build -o prxy .`
+1. Compiled scproxy binary: `go build -o scproxy .`
 2. Ensure port 9091 is not in use
 
 ### Run Command
@@ -49,13 +49,13 @@ python scripts/test_cache.py
 ### Sample Test Output
 ```
 ==================================
-Prxy Cache Functionality Test
+Scproxy Cache Functionality Test
 ==================================
 
-[INFO] Starting prxy server...
+[INFO] Starting scproxy server...
 [INFO] Target: https://mirrors.aliyun.com
 [INFO] Port: 9091
-[SUCCESS] Prxy server started (PID: 51274)
+[SUCCESS] Scproxy server started (PID: 51274)
 
 [INFO] Test 1: First download (should be CACHE MISS)
 [SUCCESS] Download completed (Size: 452480 bytes)
@@ -74,7 +74,7 @@ Test Summary
 [SUCCESS] All tests completed successfully!
 
 Test results:
-  Prxy server started successfully
+  Scproxy server started successfully
   First download (cache MISS)
   File was cached
   Second download (cache HIT)
@@ -96,7 +96,7 @@ The test script checks the log file to verify:
 ### Cache File Structure
 Cache files are stored using path-based keys with the following directory structure:
 ```
-/tmp/prxy_test/cache/
+/tmp/scproxy_test/cache/
 ├── data/
 │   └── ubuntu/
 │       └── pool/
@@ -121,9 +121,9 @@ Cache files are stored using path-based keys with the following directory struct
 
 You can also test manually:
 
-### 1. Start prxy server
+### 1. Start scproxy server
 ```bash
-./prxy --target "https://mirrors.aliyun.com" --port 9091 --cache
+./scproxy --target "https://mirrors.aliyun.com" --port 9091 --cache
 ```
 
 ### 2. Test cache miss
@@ -147,7 +147,7 @@ md5sum /tmp/test1.tar.xz /tmp/test2.tar.xz
 
 ### 5. View cache statistics
 ```bash
-./prxy --clear-cache
+./scproxy --clear-cache
 ```
 
 ## Test Coverage
@@ -181,8 +181,8 @@ kill <PID>
 ### Cache Directory Permission Issues
 Ensure you have permission to create cache directory:
 ```bash
-mkdir -p /tmp/prxy_test/cache
-chmod 755 /tmp/prxy_test/cache
+mkdir -p /tmp/scproxy_test/cache
+chmod 755 /tmp/scproxy_test/cache
 ```
 
 ### Network Connection Issues
@@ -206,7 +206,7 @@ For comprehensive testing, use the automated test runner that executes all test 
 ```
 
 This script will:
-1. Check prerequisites (prxy binary, Python 3)
+1. Check prerequisites (scproxy binary, Python 3)
 2. Run all test scripts in sequence
 3. Collect and display test results
 4. Show summary with pass/fail statistics
@@ -267,7 +267,7 @@ This test script can be integrated into CI/CD pipelines:
 # Example GitHub Actions workflow
 - name: Run cache tests
   run: |
-    go build -o prxy .
+    go build -o scproxy .
     python scripts/test_cache.py
 ```
 
@@ -279,17 +279,17 @@ Or use the automated test runner for comprehensive testing:
 # Example GitHub Actions workflow
 - name: Run all tests
   run: |
-    go build -o prxy .
+    go build -o scproxy .
     ./run_all_tests.sh
 ```
 
 ## Summary
 
-The test script successfully verified prxy's cache functionality:
+The test script successfully verified scproxy's cache functionality:
 - Cache system works correctly
 - Files correctly saved and retrieved
 - Cache hit/miss logic correct
 - Multiple file management works
 - Config file auto-update works
 
-All tests passed, prxy's cache functionality is ready for production use!
+All tests passed, scproxy's cache functionality is ready for production use!

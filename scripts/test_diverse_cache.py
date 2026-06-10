@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for prxy caching functionality with diverse file types
+Test script for scproxy caching functionality with diverse file types
 Tests caching with various file sizes, types, and sources
 """
 
@@ -28,7 +28,7 @@ class Colors:
 
 
 class DiverseCacheTester:
-    """Tests prxy cache functionality with diverse file types"""
+    """Tests scproxy cache functionality with diverse file types"""
 
     def __init__(self):
         self.script_dir = Path(__file__).parent.parent
@@ -38,7 +38,7 @@ class DiverseCacheTester:
         if prxy_bin_path:
             self.prxy_bin = Path(prxy_bin_path)
         else:
-            self.prxy_bin = self.script_dir / "prxy"
+            self.prxy_bin = self.script_dir / "scproxy"
 
         self.target_url = "https://mirrors.aliyun.com"
         self.github_url = "https://github.com"
@@ -74,7 +74,7 @@ class DiverseCacheTester:
             },
             {
                 "name": "Small text file (GitHub checksums)",
-                "url": "Madh93/prxy/releases/download/v0.1.0/checksums.txt",
+                "url": "Madh93/scproxy/releases/download/v0.1.0/checksums.txt",
                 "source": "github",
                 "type": "txt",
                 "expected_size": 0,  # Unknown, will measure
@@ -91,7 +91,7 @@ class DiverseCacheTester:
         ]
 
         # Log file
-        self.log_file = self.test_dir / "prxy.log"
+        self.log_file = self.test_dir / "scproxy.log"
 
         # Results tracking
         self.results = []
@@ -118,7 +118,7 @@ class DiverseCacheTester:
 
     def cleanup(self):
         """Clean up test environment"""
-        self.log_info("Stopping prxy server...")
+        self.log_info("Stopping scproxy server...")
         if self.prxy_pid:
             try:
                 os.kill(self.prxy_pid, signal.SIGTERM)
@@ -132,10 +132,10 @@ class DiverseCacheTester:
 
     def setup(self):
         """Setup test environment"""
-        # Check if prxy binary exists
+        # Check if scproxy binary exists
         if not self.prxy_bin.exists():
-            self.log_error(f"prxy binary not found at {self.prxy_bin}")
-            self.log_info("Please build prxy first: go build -o prxy .")
+            self.log_error(f"scproxy binary not found at {self.prxy_bin}")
+            self.log_info("Please build scproxy first: go build -o scproxy .")
             sys.exit(1)
 
         # Create test directory
@@ -146,14 +146,14 @@ class DiverseCacheTester:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def start_prxy_server(self):
-        """Start prxy server with cache enabled"""
-        self.log_info("Starting prxy server for diverse file testing...")
+        """Start scproxy server with cache enabled"""
+        self.log_info("Starting scproxy server for diverse file testing...")
         self.log_info(f"Port: {self.proxy_port}")
         self.log_info(f"Cache directory: {self.cache_dir}")
 
         config_file = self.test_dir / "config.json"
 
-        # Start prxy server
+        # Start scproxy server
         cmd = [
             str(self.prxy_bin),
             "--target", self.target_url,
@@ -176,9 +176,9 @@ class DiverseCacheTester:
         # Check if server is running
         try:
             os.kill(self.prxy_pid, 0)
-            self.log_success(f"Prxy server started (PID: {self.prxy_pid})")
+            self.log_success(f"scproxy server started (PID: {self.prxy_pid})")
         except ProcessLookupError:
-            self.log_error("Failed to start prxy server")
+            self.log_error("Failed to start scproxy server")
             with open(self.log_file, 'r') as f:
                 print(f.read()[-2000:])
             sys.exit(1)
@@ -355,7 +355,7 @@ class DiverseCacheTester:
     def run_tests(self):
         """Run all diverse tests"""
         print("=" * 60)
-        print("Prxy Diverse Cache Functionality Test")
+        print("scproxy Diverse Cache Functionality Test")
         print("=" * 60)
         print()
         print("Testing cache with diverse file types and sources:")

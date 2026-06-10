@@ -16,12 +16,12 @@ RUN go mod download
 COPY . ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags " \
     -s -w \
-    -X github.com/Madh93/prxy/internal/version.appVersion=${APP_VERSION} \
-    -X github.com/Madh93/prxy/internal/version.commitHash=${COMMIT_HASH}" \
-    -o bin/prxy
+    -X github.com/peng-mj/scproxy/internal/version.appVersion=${APP_VERSION} \
+    -X github.com/peng-mj/scproxy/internal/version.commitHash=${COMMIT_HASH}" \
+    -o bin/scproxy
 
 FROM scratch
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build /app/bin/prxy .
+COPY --from=build /app/bin/scproxy .
 
-ENTRYPOINT ["/prxy"]
+ENTRYPOINT ["/scproxy"]

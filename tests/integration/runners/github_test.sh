@@ -1,7 +1,7 @@
 #!/bin/bash
-# prxy integration test - GitHub releases & API
+# scproxy integration test - GitHub releases & API
 # Container: curlimages/curl
-# prxy route: 18801 -> https://github.com
+# scproxy route: 18801 -> https://github.com
 set -e
 
 RESULT_FILE="/results/github_results.json"
@@ -46,9 +46,9 @@ run_test() {
 PROXY_HOST="${PROXY_HOST:-host.docker.internal}"
 GITHUB_PORT="${GITHUB_PORT:-18801}"
 
-PRXY="http://${PROXY_HOST}:${GITHUB_PORT}"
+SCPROXY="http://${PROXY_HOST}:${GITHUB_PORT}"
 
-log "GitHub proxy: $PRXY"
+log "GitHub proxy: $SCPROXY"
 
 # Install jq (Debian/Alpine compatible)
 if command -v apt-get >/dev/null 2>&1; then
@@ -59,27 +59,27 @@ fi
 
 # --- Tests ---
 
-# Test 1: Download a small release asset (prxy project itself)
-run_test "github_release_download" "curl -sfL -o /tmp/prxy.tar.gz ${PRXY}/Madh93/prxy/archive/refs/tags/v0.1.0.tar.gz && ls -lh /tmp/prxy.tar.gz"
+# Test 1: Download a small release asset (scproxy project itself)
+run_test "github_release_download" "curl -sfL -o /tmp/scproxy.tar.gz ${SCPROXY}/Madh93/prxy/archive/refs/tags/v0.1.0.tar.gz && ls -lh /tmp/scproxy.tar.gz"
 
 # Test 2: Download same file again (cache HIT)
-rm -f /tmp/prxy.tar.gz
-run_test "github_release_download_cached" "curl -sfL -o /tmp/prxy.tar.gz ${PRXY}/Madh93/prxy/archive/refs/tags/v0.1.0.tar.gz && ls -lh /tmp/prxy.tar.gz"
+rm -f /tmp/scproxy.tar.gz
+run_test "github_release_download_cached" "curl -sfL -o /tmp/scproxy.tar.gz ${SCPROXY}/Madh93/prxy/archive/refs/tags/v0.1.0.tar.gz && ls -lh /tmp/scproxy.tar.gz"
 
 # Test 3: Check cache response headers on second download
-run_test "github_cache_headers" "curl -sI ${PRXY}/Madh93/prxy/archive/refs/tags/v0.1.0.tar.gz | head -5"
+run_test "github_cache_headers" "curl -sI ${SCPROXY}/Madh93/prxy/archive/refs/tags/v0.1.0.tar.gz | head -5"
 
 # Test 4: Download README via raw.githubusercontent.com (redirect test)
-run_test "github_raw_file" "curl -sfL -o /tmp/readme.md ${PRXY}/Madh93/prxy/raw/main/README.md && wc -l /tmp/readme.md"
+run_test "github_raw_file" "curl -sfL -o /tmp/readme.md ${SCPROXY}/Madh93/prxy/raw/main/README.md && wc -l /tmp/readme.md"
 
 # Test 5: API request - repo info (note: api.github.com is a different host,
 # so we test downloading a raw file from the repo instead which goes through github.com)
-run_test "github_api_repo" "curl -sfL ${PRXY}/Madh93/prxy/blob/main/LICENSE?raw=true -o /tmp/license.txt && wc -c /tmp/license.txt"
+run_test "github_api_repo" "curl -sfL ${SCPROXY}/Madh93/prxy/blob/main/LICENSE?raw=true -o /tmp/license.txt && wc -c /tmp/license.txt"
 
 # Test 6: Range request (first 1KB)
-run_test "github_range_request" "curl -sfL -r 0-1023 -o /tmp/part.bin ${PRXY}/Madh93/prxy/archive/refs/tags/v0.1.0.tar.gz && ls -lh /tmp/part.bin"
+run_test "github_range_request" "curl -sfL -r 0-1023 -o /tmp/part.bin ${SCPROXY}/Madh93/prxy/archive/refs/tags/v0.1.0.tar.gz && ls -lh /tmp/part.bin"
 
 # Test 7: Latest release redirect
-run_test "github_latest_redirect" "curl -sI ${PRXY}/Madh93/prxy/releases/latest | head -5"
+run_test "github_latest_redirect" "curl -sI ${SCPROXY}/Madh93/prxy/releases/latest | head -5"
 
 log "=== GitHub tests completed ==="

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Madh93/prxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/config"
 )
 
 // ShouldCacheRequest determines if a request should be cached.

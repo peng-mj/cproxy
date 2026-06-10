@@ -1,6 +1,6 @@
-# Prxy Scripts
+# Scproxy Scripts
 
-This directory contains utility and test scripts for prxy.
+This directory contains utility and test scripts for scproxy.
 
 ## Automated Testing
 
@@ -14,7 +14,7 @@ The easiest way to run all tests is using the automated test runner in the proje
 
 This script will:
 - **Auto-detect your system** (OS, CPU architecture, Go version)
-- **Automatically build** a temporary prxy binary optimized for your system
+- **Automatically build** a temporary scproxy binary optimized for your system
 - **Run all test scripts** in sequence
 - **Clean up automatically** after testing (removes temporary binary and cache)
 - **Display results** with color-coded output and statistics
@@ -42,12 +42,12 @@ Building Test Binary
 [INFO] Go version: go1.24.3
 [INFO] Host system: Ubuntu 24.04
 
-[INFO] Building temporary prxy binary for testing...
-[INFO] Output: .prxy_test
+[INFO] Building temporary scproxy binary for testing...
+[INFO] Output: .scproxy_test
 [INFO] Target: linux/amd64
 
-  github.com/Madh93/prxy
-  github.com/Madh93/prxy/internal/cache
+  github.com/Madh93/scproxy
+  github.com/Madh93/scproxy/internal/cache
   ...
 
 [SUCCESS] Temporary binary built successfully
@@ -59,10 +59,10 @@ Building Test Binary
 ### What Gets Cleaned Up
 
 The automated test runner creates and removes:
-- **Temporary binary**: `.prxy_test` (removed after testing)
+- **Temporary binary**: `.scproxy_test` (removed after testing)
 - **Test cache directories**: `.test_cache/` (removed after testing)
-- **Temporary test directories**: `/tmp/prxy_test` (removed after testing)
-- **Test log files**: `prxy_test.log`, `test_output.txt`, etc. (removed after testing)
+- **Temporary test directories**: `/tmp/scproxy_test` (removed after testing)
+- **Test log files**: `scproxy_test.log`, `test_output.txt`, etc. (removed after testing)
 
 This ensures each test run starts with a clean environment and doesn't leave artifacts behind.
 
@@ -71,7 +71,7 @@ This ensures each test run starts with a clean environment and doesn't leave art
 ### Cache Management
 
 #### `cache.py`
-Cache management tool for prxy. Provides commands to enable, disable, and view cache status.
+Cache management tool for scproxy. Provides commands to enable, disable, and view cache status.
 
 **Usage:**
 ```bash
@@ -95,7 +95,7 @@ python scripts/cache.py clear    # Clear cache
 ### Testing Scripts
 
 #### `test_cache.py`
-Integration test script for prxy's caching functionality using Ubuntu package files from Aliyun mirror.
+Integration test script for scproxy's caching functionality using Ubuntu package files from Aliyun mirror.
 
 **Usage:**
 ```bash
@@ -139,7 +139,7 @@ python scripts/test_diverse_cache.py
 4. `dufs-v0.45.0-x86_64-unknown-linux-musl.tar.gz` (~1.5 MB) - Large binary archive
 
 #### `test_batch_demo.py`
-Demo script showcasing prxy's batch proxy configuration functionality. Tests multiple routes on different ports simultaneously.
+Demo script showcasing scproxy's batch proxy configuration functionality. Tests multiple routes on different ports simultaneously.
 
 **Usage:**
 ```bash
@@ -152,7 +152,7 @@ python scripts/test_batch_demo.py
 - Demonstrates configuration file + CLI parameter combination
 
 #### `test_github_releases.py`
-Test script for GitHub releases proxy optimization feature. Verifies that prxy correctly handles GitHub releases URLs with optimized chunking and caching.
+Test script for GitHub releases proxy optimization feature. Verifies that scproxy correctly handles GitHub releases URLs with optimized chunking and caching.
 
 **Usage:**
 ```bash
@@ -170,10 +170,10 @@ python scripts/test_github_releases.py
 
 All scripts require:
 - Python 3.6 or higher
-- Compiled `prxy` binary in project root
+- Compiled `scproxy` binary in project root
 - Standard library only (no external Python dependencies)
 
-Build prxy first:
+Build scproxy first:
 ```bash
 make build
 ```

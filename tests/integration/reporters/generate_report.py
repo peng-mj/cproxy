@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""prxy integration test report generator."""
+"""scproxy integration test report generator."""
 
 import json
 import os
@@ -63,7 +63,7 @@ def generate_html(suites, total_pass, total_fail, total_duration):
         rows += "</table>\n"
 
     html = f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>prxy Integration Test Report</title>
+<html><head><meta charset="utf-8"><title>scproxy Integration Test Report</title>
 <style>
 body {{ font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif; margin:40px; background:#f5f5f5; }}
 .c {{ max-width:1000px; margin:0 auto; background:#fff; padding:30px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.1); }}
@@ -79,7 +79,7 @@ th {{ background:#f8f9fa; }} tr:hover {{ background:#f8f9fa; }}
 td.pass {{ color:#155724; background:#d4edda; font-weight:600; }}
 td.fail {{ color:#721c24; background:#f8d7da; font-weight:600; }}
 </style></head><body><div class="c">
-<h1>prxy Integration Test Report</h1>
+<h1>scproxy Integration Test Report</h1>
 <p>Generated: {now}</p>
 <div class="cards">
   <div class="card pass"><h2>{total_pass}</h2><p>Passed</p></div>
@@ -98,7 +98,7 @@ def generate_markdown(suites, total_pass, total_fail, total_duration):
     rate = f"{total_pass / total * 100:.1f}" if total > 0 else "0.0"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    md = f"# prxy Integration Test Report\n\n**Generated:** {now}\n\n"
+    md = f"# scproxy Integration Test Report\n\n**Generated:** {now}\n\n"
     md += f"| Metric | Value |\n|---|---|\n| Total | {total} |\n| Passed | {total_pass} |\n| Failed | {total_fail} |\n| Duration | {total_duration}s |\n| Pass Rate | {rate}% |\n\n"
 
     for suite in suites:

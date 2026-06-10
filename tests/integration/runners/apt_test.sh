@@ -1,7 +1,7 @@
 #!/bin/bash
-# prxy integration test - APT mirror
+# scproxy integration test - APT mirror
 # Container: debian:bookworm-slim
-# prxy route: 18800 -> https://mirrors.aliyun.com
+# scproxy route: 18800 -> https://mirrors.aliyun.com
 set -e
 
 RESULT_FILE="/results/apt_results.json"
@@ -37,7 +37,7 @@ run_test() {
        "$RESULT_FILE" > "${RESULT_FILE}.tmp" && mv "${RESULT_FILE}.tmp" "$RESULT_FILE"
 }
 
-# --- Setup: configure apt to use prxy proxy ---
+# --- Setup: configure apt to use scproxy proxy ---
 PROXY_HOST="${PROXY_HOST:-host.docker.internal}"
 PROXY_PORT="${PROXY_PORT:-18800}"
 MIRROR="http://${PROXY_HOST}:${PROXY_PORT}"

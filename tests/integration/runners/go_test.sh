@@ -1,8 +1,8 @@
 #!/bin/bash
-# prxy integration test - Go modules
+# scproxy integration test - Go modules
 # Container: golang:1.24-bookworm
-# prxy route: 18800 -> https://mirrors.aliyun.com
-# GOPROXY pointed at prxy (acting as goproxy mirror)
+# scproxy route: 18800 -> https://mirrors.aliyun.com
+# GOPROXY pointed at scproxy (acting as goproxy mirror)
 set -e
 
 RESULT_FILE="/results/go_results.json"

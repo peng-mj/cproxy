@@ -1,7 +1,7 @@
 #!/bin/bash
-# prxy integration test - Cargo (Rust crates)
+# scproxy integration test - Cargo (Rust crates)
 # Container: rust:1.83-bookworm-slim
-# prxy route: 18800 -> https://mirrors.aliyun.com
+# scproxy route: 18800 -> https://mirrors.aliyun.com
 # Using tuna crates mirror index + aliyun for crates-io
 set -e
 
@@ -49,7 +49,7 @@ rm -rf /tmp/cargotest
 mkdir -p /tmp/cargotest
 cd /tmp/cargotest
 
-# Use official sparse registry (bypass prxy for crates.io to avoid issues)
+# Use official sparse registry (bypass scproxy for crates.io to avoid issues)
 cat > /root/.cargo/config.toml << EOF
 [source.crates-io]
 registry = "sparse+https://index.crates.io/"

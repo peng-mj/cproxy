@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/Madh93/prxy/internal/stats"
+	"github.com/peng-mj/scproxy/internal/stats"
 )
 
 // ConfigManager manages configuration with thread-safe statistics updates.

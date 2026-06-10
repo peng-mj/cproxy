@@ -1,14 +1,14 @@
-package prxy
+package scproxy
 
 import (
 	"fmt"
 	"net/http"
 	"net/url"
 
-	"github.com/Madh93/prxy/internal/cache"
-	"github.com/Madh93/prxy/internal/config"
-	"github.com/Madh93/prxy/internal/logging"
-	"github.com/Madh93/prxy/internal/stats"
+	"github.com/peng-mj/scproxy/internal/cache"
+	"github.com/peng-mj/scproxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/logging"
+	"github.com/peng-mj/scproxy/internal/stats"
 )
 
 type RequestContext struct {

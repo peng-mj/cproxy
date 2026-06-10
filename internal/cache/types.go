@@ -1,4 +1,4 @@
-// Package cache provides HTTP caching functionality for the prxy proxy server.
+// Package cache provides HTTP caching functionality for the scproxy proxy server.
 //
 // This package implements a file-based HTTP cache with support for cache policies,
 // concurrent access, and cache invalidation strategies.

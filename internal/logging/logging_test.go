@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Madh93/prxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/config"
 )
 
 // newTestDefaultConfig is a helper to create a default valid config.LoggingConfig for tests.

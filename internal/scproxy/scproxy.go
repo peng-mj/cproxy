@@ -1,4 +1,4 @@
-package prxy
+package scproxy
 
 import (
 	"bufio"
@@ -15,14 +15,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Madh93/prxy/internal/cache"
-	"github.com/Madh93/prxy/internal/config"
-	"github.com/Madh93/prxy/internal/logging"
-	"github.com/Madh93/prxy/internal/stats"
+	"github.com/peng-mj/scproxy/internal/cache"
+	"github.com/peng-mj/scproxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/logging"
+	"github.com/peng-mj/scproxy/internal/stats"
 )
 
-// Prxy holds all the dependencies for the HTTP server.
-type Prxy struct {
+// scproxy holds all the dependencies for the HTTP server.
+type scproxy struct {
 	logger         *logging.Logger
 	server         *http.Server
 	cache          *cache.Cache
@@ -33,8 +33,8 @@ type Prxy struct {
 	statsCollector *stats.Collector
 }
 
-// New creates and configures a new Prxy instance.
-func New(cfg *config.Config, target string, port int, logger *logging.Logger, statsCollector *stats.Collector, sharedCache *cache.Cache) (*Prxy, error) {
+// New creates and configures a new scproxy instance.
+func New(cfg *config.Config, target string, port int, logger *logging.Logger, statsCollector *stats.Collector, sharedCache *cache.Cache) (*scproxy, error) {
 	// 0. Ensure to parse URLs
 	parsedTargetURL, err := url.Parse(target)
 	if err != nil {
@@ -118,8 +118,8 @@ func New(cfg *config.Config, target string, port int, logger *logging.Logger, st
 		Handler: handler,
 	}
 
-	// Create main Prxy struct.
-	prxy := &Prxy{
+	// Create main scproxy struct.
+	scproxy := &scproxy{
 		logger:         logger,
 		server:         httpServer,
 		cache:          c,
@@ -130,25 +130,25 @@ func New(cfg *config.Config, target string, port int, logger *logging.Logger, st
 		statsCollector: statsCollector,
 	}
 
-	return prxy, nil
+	return scproxy, nil
 }
 
 // Run starts the HTTP server and blocks until it exits.
-func (s Prxy) Run() error {
+func (s scproxy) Run() error {
 	// This method always returns a non-nil error. When Shutdown() is called,
 	// it returns http.ErrServerClosed.
 	return s.server.ListenAndServe()
 }
 
 // Shutdown gracefully shuts down the server.
-func (s Prxy) Shutdown(ctx context.Context) error {
+func (s scproxy) Shutdown(ctx context.Context) error {
 	s.logger.Debug("Shutting down HTTP server...")
 	return s.server.Shutdown(ctx)
 }
 
 // Addr returns the network address the server is listening on.
 // Returns an empty string if the server is not running.
-func (s Prxy) Addr() string {
+func (s scproxy) Addr() string {
 	return s.server.Addr
 }
 

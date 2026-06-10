@@ -1,4 +1,4 @@
-# Building prxy
+# Building scproxy
 
 ## Quick Start
 
@@ -20,9 +20,9 @@ The build script supports the following platforms:
 
 | Platform | Architecture | Output |
 |----------|-------------|--------|
-| Linux | amd64, arm64 | `prxy-linux-amd64.tar.gz` |
-| Windows | amd64, arm64 | `prxy-windows-amd64.zip` |
-| macOS | amd64, arm64 | `prxy-darwin-amd64.tar.gz` |
+| Linux | amd64, arm64 | `scproxy-linux-amd64.tar.gz` |
+| Windows | amd64, arm64 | `scproxy-windows-amd64.zip` |
+| macOS | amd64, arm64 | `scproxy-darwin-amd64.tar.gz` |
 
 ## Build Output
 
@@ -30,12 +30,12 @@ All build artifacts are placed in the `output/` directory:
 
 ```
 output/
-├── prxy-linux-amd64.tar.gz       # Linux 64-bit
-├── prxy-linux-arm64.tar.gz       # Linux ARM64
-├── prxy-windows-amd64.zip        # Windows 64-bit
-├── prxy-windows-arm64.zip        # Windows ARM64
-├── prxy-darwin-amd64.tar.gz      # macOS Intel
-├── prxy-darwin-arm64.tar.gz      # macOS Apple Silicon
+├── scproxy-linux-amd64.tar.gz       # Linux 64-bit
+├── scproxy-linux-arm64.tar.gz       # Linux ARM64
+├── scproxy-windows-amd64.zip        # Windows 64-bit
+├── scproxy-windows-arm64.zip        # Windows ARM64
+├── scproxy-darwin-amd64.tar.gz      # macOS Intel
+├── scproxy-darwin-arm64.tar.gz      # macOS Apple Silicon
 └── SHA256SUMS.txt                # Checksums for all archives
 ```
 
@@ -44,24 +44,24 @@ output/
 ### Linux
 ```bash
 # Download and extract
-tar -xzf prxy-linux-amd64.tar.gz
-sudo cp prxy /usr/local/bin/
-sudo chmod +x /usr/local/bin/prxy
+tar -xzf scproxy-linux-amd64.tar.gz
+sudo cp scproxy /usr/local/bin/
+sudo chmod +x /usr/local/bin/scproxy
 ```
 
 ### Windows
 ```powershell
 # Download and extract
-unzip prxy-windows-amd64.zip
+unzip scproxy-windows-amd64.zip
 # Add to PATH or copy to a directory in PATH
 ```
 
 ### macOS
 ```bash
 # Download and extract
-tar -xzf prxy-darwin-amd64.tar.gz
-sudo cp prxy /usr/local/bin/
-sudo chmod +x /usr/local/bin/prxy
+tar -xzf scproxy-darwin-amd64.tar.gz
+sudo cp scproxy /usr/local/bin/
+sudo chmod +x /usr/local/bin/scproxy
 ```
 
 ## Makefile Commands
@@ -106,7 +106,7 @@ VERSION=v1.0.0 OUTPUT_DIR=dist ./build.sh
 make build
 
 # Run with debug logging
-./prxy --target https://example.com --proxy http://proxy:8080 --port 8080 --log-level debug
+./scproxy --target https://example.com --proxy http://proxy:8080 --port 8080 --log-level debug
 
 # Or use the dev-run target
 make dev-run
@@ -127,13 +127,13 @@ After building, verify the binary:
 
 ```bash
 # Check version
-./prxy --version
+./scproxy --version
 
 # Check help
-./prxy --help
+./scproxy --help
 
 # Verify binary
-file prxy
+file scproxy
 # Linux: ELF 64-bit LSB executable...
 # Windows: PE32+ executable (console) x86-64...
 # macOS: Mach-O 64-bit executable...
@@ -170,7 +170,7 @@ make build
 ### Permission denied on Linux
 ```bash
 # Make binary executable
-chmod +x prxy
+chmod +x scproxy
 ```
 
 ### Windows SmartScreen warning

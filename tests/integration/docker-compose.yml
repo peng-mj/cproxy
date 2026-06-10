@@ -1,7 +1,7 @@
 services:
   apt-tester:
     image: debian:bookworm-slim
-    container_name: prxy-apt-test
+    container_name: scproxy-apt-test
     environment:
       - PROXY_HOST=host.docker.internal
       - PROXY_PORT=18800
@@ -12,11 +12,11 @@ services:
       - "host.docker.internal:host-gateway"
     entrypoint: ["bash", "/scripts/apt_test.sh"]
     networks:
-      - prxy-test
+      - scproxy-test
 
   # pip-tester:
   #   image: python:3.12-slim
-  #   container_name: prxy-pip-test
+  #   container_name: scproxy-pip-test
   #   environment:
   #     - PROXY_HOST=host.docker.internal
   #     - PROXY_PORT=18800
@@ -27,11 +27,11 @@ services:
   #     - "host.docker.internal:host-gateway"
   #   entrypoint: ["bash", "/scripts/pip_test.sh"]
   #   networks:
-  #     - prxy-test
+  #     - scproxy-test
 
   go-tester:
-    image: prxy-test-env:latest
-    container_name: prxy-go-test
+    image: scproxy-test-env:latest
+    container_name: scproxy-go-test
     environment:
       - PROXY_HOST=host.docker.internal
       - GO_PORT=18803
@@ -43,11 +43,11 @@ services:
     working_dir: /tmp/gotest
     entrypoint: ["bash", "/scripts/go_test.sh"]
     networks:
-      - prxy-test
+      - scproxy-test
 
   npm-tester:
-    image: prxy-test-env:latest
-    container_name: prxy-npm-test
+    image: scproxy-test-env:latest
+    container_name: scproxy-npm-test
     environment:
       - PROXY_HOST=host.docker.internal
       - NPM_PORT=18802
@@ -58,11 +58,11 @@ services:
       - "host.docker.internal:host-gateway"
     entrypoint: ["bash", "/scripts/npm_test.sh"]
     networks:
-      - prxy-test
+      - scproxy-test
 
   cargo-tester:
-    image: prxy-test-env:latest
-    container_name: prxy-cargo-test
+    image: scproxy-test-env:latest
+    container_name: scproxy-cargo-test
     environment:
       - PROXY_HOST=host.docker.internal
       - PROXY_PORT=18800
@@ -74,11 +74,11 @@ services:
     working_dir: /tmp/cargotest
     entrypoint: ["bash", "/scripts/cargo_test.sh"]
     networks:
-      - prxy-test
+      - scproxy-test
 
   github-tester:
-    image: prxy-test-env:latest
-    container_name: prxy-github-test
+    image: scproxy-test-env:latest
+    container_name: scproxy-github-test
     environment:
       - PROXY_HOST=host.docker.internal
       - GITHUB_PORT=18801
@@ -89,8 +89,8 @@ services:
       - "host.docker.internal:host-gateway"
     entrypoint: ["bash", "/scripts/github_test.sh"]
     networks:
-      - prxy-test
+      - scproxy-test
 
 networks:
-  prxy-test:
+  scproxy-test:
     driver: bridge

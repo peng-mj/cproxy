@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Madh93/prxy/internal/validation"
+	"github.com/peng-mj/scproxy/internal/validation"
 )
 
 // LogLevel defines the severity of a log entry.

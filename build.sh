@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build script for prxy - Multi-platform build
+# Build script for scproxy - Multi-platform build
 # Supports: Linux/Windows + amd64/arm64
 # Usage: ./build.sh [--upx] [--version VERSION]
 
@@ -31,7 +31,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Build configuration
-APP_NAME="prxy"
+APP_NAME="scproxy"
 OUTPUT_DIR="output"
 VERSION="${VERSION:-dev}"
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

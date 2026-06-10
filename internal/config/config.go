@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Madh93/prxy/internal/validation"
+	"github.com/peng-mj/scproxy/internal/validation"
 )
 
 // Config represents a configuration object. This type is
@@ -38,7 +38,7 @@ type Config struct {
 }
 
 // AppName is the name of the application.
-const AppName = "prxy"
+const AppName = "scproxy"
 
 // New loads the application configuration from various sources:
 //   - JSON configuration file (created with defaults if missing)
@@ -47,7 +47,7 @@ func New(flags *CLIFlags) (*Config, error) {
 	// 1. Get configuration file path
 	configPath := flags.ConfigPath
 	if configPath == "" {
-		configPath = "./cache/prxy.json"
+		configPath = "./cache/scproxy.json"
 	}
 
 	// 2. Load JSON configuration

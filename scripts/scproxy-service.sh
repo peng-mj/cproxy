@@ -1,6 +1,6 @@
 #!/bin/bash
-# prxy service management script for Linux
-# Usage: ./prxy-service.sh {start|stop|status|restart|logs}
+# scproxy service management script for Linux
+# Usage: ./scproxy-service.sh {start|stop|status|restart|logs}
 
 set -e
 
@@ -9,9 +9,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Configuration
-PRXY_BIN="$SCRIPT_DIR/prxy"
-PID_FILE="$SCRIPT_DIR/prxy.pid"
-LOG_FILE="$SCRIPT_DIR/prxy.log"
+SCPROXY_BIN="$SCRIPT_DIR/scproxy"
+PID_FILE="$SCRIPT_DIR/scproxy.pid"
+LOG_FILE="$SCRIPT_DIR/scproxy.log"
 DEFAULT_CONFIG="$SCRIPT_DIR/cache/config.json"
 
 # Colors for output
@@ -33,16 +33,16 @@ print_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
-# Check if prxy binary exists
+# Check if scproxy binary exists
 check_binary() {
-    if [ ! -f "$PRXY_BIN" ]; then
-        print_error "prxy binary not found at: $PRXY_BIN"
-        print_info "Please build prxy first: make build"
+    if [ ! -f "$SCPROXY_BIN" ]; then
+        print_error "scproxy binary not found at: $SCPROXY_BIN"
+        print_info "Please build scproxy first: make build"
         exit 1
     fi
-    if [ ! -x "$PRXY_BIN" ]; then
-        print_warn "Making prxy binary executable..."
-        chmod +x "$PRXY_BIN"
+    if [ ! -x "$SCPROXY_BIN" ]; then
+        print_warn "Making scproxy binary executable..."
+        chmod +x "$SCPROXY_BIN"
     fi
 }
 
@@ -81,11 +81,11 @@ get_process_info() {
 
 # Start service
 start_service() {
-    print_info "Starting prxy service..."
+    print_info "Starting scproxy service..."
 
     if is_running; then
         local pid=$(cat "$PID_FILE")
-        print_warn "prxy is already running (PID: $pid)"
+        print_warn "scproxy is already running (PID: $pid)"
         print_info "Use 'status' to see details or 'stop' to stop it first"
         exit 0
     fi
@@ -95,14 +95,14 @@ start_service() {
     # Check if config exists
     if [ ! -f "$DEFAULT_CONFIG" ]; then
         print_warn "Config file not found at: $DEFAULT_CONFIG"
-        print_info "prxy will create a default config on first run"
+        print_info "scproxy will create a default config on first run"
     fi
 
-    # Start prxy in background
+    # Start scproxy in background
     print_info "Using config: $DEFAULT_CONFIG"
     print_info "Logging to: $LOG_FILE"
 
-    nohup "$PRXY_BIN" --config "$DEFAULT_CONFIG" >> "$LOG_FILE" 2>&1 &
+    nohup "$SCPROXY_BIN" --config "$DEFAULT_CONFIG" >> "$LOG_FILE" 2>&1 &
     local pid=$!
 
     # Save PID
@@ -111,11 +111,11 @@ start_service() {
     # Wait a moment and check if process started successfully
     sleep 1
     if kill -0 "$pid" 2>/dev/null; then
-        print_info "prxy started successfully (PID: $pid)"
+        print_info "scproxy started successfully (PID: $pid)"
         print_info "PID file: $PID_FILE"
         print_info "Log file: $LOG_FILE"
     else
-        print_error "Failed to start prxy. Check log file: $LOG_FILE"
+        print_error "Failed to start scproxy. Check log file: $LOG_FILE"
         rm -f "$PID_FILE"
         exit 1
     fi
@@ -123,10 +123,10 @@ start_service() {
 
 # Stop service
 stop_service() {
-    print_info "Stopping prxy service..."
+    print_info "Stopping scproxy service..."
 
     if ! is_running; then
-        print_warn "prxy is not running"
+        print_warn "scproxy is not running"
         if [ -f "$PID_FILE" ]; then
             rm -f "$PID_FILE"
         fi
@@ -158,16 +158,16 @@ stop_service() {
 
     # Final check
     if kill -0 "$pid" 2>/dev/null; then
-        print_error "Failed to stop prxy (PID: $pid)"
+        print_error "Failed to stop scproxy (PID: $pid)"
         exit 1
     else
-        print_info "prxy stopped successfully"
+        print_info "scproxy stopped successfully"
     fi
 }
 
 # Show service status
 show_status() {
-    print_info "prxy service status:"
+    print_info "scproxy service status:"
 
     if is_running; then
         local pid=$(cat "$PID_FILE")
@@ -175,7 +175,7 @@ show_status() {
         echo "  PID: $pid"
         echo "  PID File: $PID_FILE"
         echo "  Log File: $LOG_FILE"
-        echo "  Binary: $PRXY_BIN"
+        echo "  Binary: $SCPROXY_BIN"
 
         # Show uptime and resource usage if available
         if command -v ps >/dev/null 2>&1; then
@@ -215,7 +215,7 @@ show_status() {
 show_logs() {
     if [ ! -f "$LOG_FILE" ]; then
         print_warn "Log file does not exist: $LOG_FILE"
-        print_info "The log file will be created when prxy starts"
+        print_info "The log file will be created when scproxy starts"
         exit 1
     fi
 
@@ -247,13 +247,13 @@ case "${1:-}" in
         show_logs
         ;;
     *)
-        echo "prxy service management script"
+        echo "scproxy service management script"
         echo ""
         echo "Usage: $0 {start|stop|status|restart|logs}"
         echo ""
         echo "Commands:"
-        echo "  start   - Start prxy service"
-        echo "  stop    - Stop prxy service"
+        echo "  start   - Start scproxy service"
+        echo "  stop    - Stop scproxy service"
         echo "  status  - Show service status"
         echo "  restart - Restart service"
         echo "  logs    - Monitor log file in real-time (tail -f)"

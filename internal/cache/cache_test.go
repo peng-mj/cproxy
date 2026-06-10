@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Madh93/prxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/config"
 )
 
 // TestGenerateCacheKey_HostNotInHash verifies that different hosts generate the same hash

@@ -1,7 +1,7 @@
 #!/bin/bash
-# prxy integration test - npm
+# scproxy integration test - npm
 # Container: node:20-slim
-# prxy route: 18800 -> https://mirrors.aliyun.com
+# scproxy route: 18800 -> https://mirrors.aliyun.com
 # Using npmmirror via aliyun proxy
 set -e
 
@@ -71,7 +71,7 @@ run_test "npm_install_lodash_second" "npm install lodash@4.17.21 --no-package-lo
 # Test 6: install from package.json
 cat > package.json << 'EOF'
 {
-  "name": "prxy-test",
+  "name": "scproxy-test",
   "version": "1.0.0",
   "dependencies": {
     "lodash": "4.17.21",

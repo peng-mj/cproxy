@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Automated test runner for prxy
+# Automated test runner for scproxy
 # Runs all test scripts in the scripts directory
 
 set -e
@@ -16,11 +16,11 @@ NC='\033[0m' # No Color
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PRXY_BIN="$SCRIPT_DIR/prxy"
+SCPROXY_BIN="$SCRIPT_DIR/scproxy"
 TESTS_DIR="$SCRIPT_DIR/scripts"
 
 # Temporary build artifacts
-TEMP_PRXY_BIN="$SCRIPT_DIR/.prxy_test"
+TEMP_SCPROXY_BIN="$SCRIPT_DIR/.scproxy_test"
 TEMP_BUILD_DIR="$SCRIPT_DIR/.test_build"
 TEMP_CACHE_BASE="$SCRIPT_DIR/.test_cache"
 
@@ -78,7 +78,7 @@ cleanup() {
 
     log_info "Cleaning up any running processes..."
     pkill -f "python.*test_.*.py" 2>/dev/null || true
-    pkill -f "prxy.*--port" 2>/dev/null || true
+    pkill -f "scproxy.*--port" 2>/dev/null || true
     sleep 1
 }
 
@@ -90,9 +90,9 @@ cleanup_environment() {
     cleanup
 
     # Remove temporary binary
-    if [ -f "$TEMP_PRXY_BIN" ]; then
-        log_info "Removing temporary binary: $TEMP_PRXY_BIN"
-        rm -f "$TEMP_PRXY_BIN"
+    if [ -f "$TEMP_SCPROXY_BIN" ]; then
+        log_info "Removing temporary binary: $TEMP_SCPROXY_BIN"
+        rm -f "$TEMP_SCPROXY_BIN"
         log_success "Temporary binary removed"
     fi
 
@@ -110,15 +110,15 @@ cleanup_environment() {
         log_success "Test cache directories removed"
     fi
 
-    # Clean up /tmp/prxy_test if exists
-    if [ -d "/tmp/prxy_test" ]; then
-        log_info "Removing /tmp/prxy_test directory"
-        rm -rf "/tmp/prxy_test"
+    # Clean up /tmp/scproxy_test if exists
+    if [ -d "/tmp/scproxy_test" ]; then
+        log_info "Removing /tmp/scproxy_test directory"
+        rm -rf "/tmp/scproxy_test"
         log_success "Temporary test directory removed"
     fi
 
     # Clean up test log files
-    for log_file in prxy_test.log test_output.txt test_direct.txt; do
+    for log_file in scproxy_test.log test_output.txt test_direct.txt; do
         if [ -f "$SCRIPT_DIR/$log_file" ]; then
             log_info "Removing test log file: $log_file"
             rm -f "$SCRIPT_DIR/$log_file"
@@ -171,8 +171,8 @@ build_temp_binary() {
     fi
 
     echo ""
-    log_info "Building temporary prxy binary for testing..."
-    log_info "Output: $TEMP_PRXY_BIN"
+    log_info "Building temporary scproxy binary for testing..."
+    log_info "Output: $TEMP_SCPROXY_BIN"
     log_info "Target: $DETECTED_GOOS/$DETECTED_GOARCH"
     echo ""
 
@@ -188,7 +188,7 @@ build_temp_binary() {
         BUILD_CMD="$BUILD_CMD GOARM=\"$DETECTED_GOARM\""
     fi
 
-    BUILD_CMD="$BUILD_CMD go build -v -o \"$TEMP_PRXY_BIN\" ."
+    BUILD_CMD="$BUILD_CMD go build -v -o \"$TEMP_SCPROXY_BIN\" ."
 
     # Execute build command
     eval $BUILD_CMD 2>&1 | while IFS= read -r line; do
@@ -203,21 +203,21 @@ build_temp_binary() {
     fi
 
     # Make it executable
-    chmod +x "$TEMP_PRXY_BIN"
+    chmod +x "$TEMP_SCPROXY_BIN"
 
     # Display binary info
-    BINARY_SIZE=$(stat -f%z "$TEMP_PRXY_BIN" 2>/dev/null || stat -c%s "$TEMP_PRXY_BIN" 2>/dev/null)
+    BINARY_SIZE=$(stat -f%z "$TEMP_SCPROXY_BIN" 2>/dev/null || stat -c%s "$TEMP_SCPROXY_BIN" 2>/dev/null)
     BINARY_SIZE_MB=$(echo "scale=2; $BINARY_SIZE / 1024 / 1024" | bc 2>/dev/null || echo "?")
     log_info "Binary size: $BINARY_SIZE bytes (~${BINARY_SIZE_MB} MB)"
 
     # Display binary type information
     if command -v file &> /dev/null; then
-        BINARY_TYPE=$(file "$TEMP_PRXY_BIN")
+        BINARY_TYPE=$(file "$TEMP_SCPROXY_BIN")
         log_info "Binary type: $BINARY_TYPE"
     fi
 
     # Verify binary
-    if [ -f "$TEMP_PRXY_BIN" ] && [ -x "$TEMP_PRXY_BIN" ]; then
+    if [ -f "$TEMP_SCPROXY_BIN" ] && [ -x "$TEMP_SCPROXY_BIN" ]; then
         log_success "Binary verified and executable"
     else
         log_error "Binary verification failed"
@@ -275,13 +275,13 @@ run_test() {
     log_header "Test $TOTAL_TESTS: $test_name"
     log_info "Description: $test_description"
     log_info "Script: $test_script"
-    log_info "Using binary: $TEMP_PRXY_BIN"
+    log_info "Using binary: $TEMP_SCPROXY_BIN"
     echo ""
 
     log_test_start "$test_name"
 
     # Run the test with temporary binary path
-    export PRXY_BIN_PATH="$TEMP_PRXY_BIN"
+    export SCPROXY_BIN_PATH="$TEMP_SCPROXY_BIN"
     export TEST_CACHE_DIR="$TEMP_CACHE_BASE"
 
     if bash -c "cd '$SCRIPT_DIR' && python3 '$test_script'"; then
@@ -298,7 +298,7 @@ run_test() {
 
 # Main test execution
 main() {
-    log_header "Prxy Automated Test Suite"
+    log_header "Scproxy Automated Test Suite"
     echo ""
     log_info "Starting automated test execution..."
     log_info "Working directory: $SCRIPT_DIR"

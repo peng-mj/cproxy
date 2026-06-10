@@ -1,7 +1,7 @@
 #!/bin/bash
-# prxy integration test - pip (PyPI)
+# scproxy integration test - pip (PyPI)
 # Container: python:3.12-slim
-# prxy route: 18800 -> https://mirrors.aliyun.com
+# scproxy route: 18800 -> https://mirrors.aliyun.com
 # Using tuna pypi mirror via aliyun proxy path
 set -e
 
@@ -41,7 +41,7 @@ run_test() {
 PROXY_HOST="${PROXY_HOST:-host.docker.internal}"
 PROXY_PORT="${PROXY_PORT:-18800}"
 
-# Use aliyun pypi mirror through prxy
+# Use aliyun pypi mirror through scproxy
 PIP_INDEX="http://${PROXY_HOST}:${PROXY_PORT}/pypi/simple"
 PIP_TRUSTED="${PROXY_HOST}:${PROXY_PORT}"
 

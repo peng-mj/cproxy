@@ -1,4 +1,4 @@
-package prxy
+package scproxy
 
 import (
 	"context"
@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Madh93/prxy/internal/cache"
-	"github.com/Madh93/prxy/internal/config"
-	"github.com/Madh93/prxy/internal/logging"
-	"github.com/Madh93/prxy/internal/stats"
+	"github.com/peng-mj/scproxy/internal/cache"
+	"github.com/peng-mj/scproxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/logging"
+	"github.com/peng-mj/scproxy/internal/stats"
 )
 
 func createTestLogger() *logging.Logger {
@@ -92,15 +92,15 @@ func TestFetchWithRedirectFollow_GitHubOptimization(t *testing.T) {
 
 	t.Run("GitHub releases URL follows redirect and preserves headers", func(t *testing.T) {
 		finalServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Disposition", `attachment; filename="prxy-linux-amd64.tar.gz"`)
+			w.Header().Set("Content-Disposition", `attachment; filename="scproxy-linux-amd64.tar.gz"`)
 			w.Header().Set("Content-Type", "application/octet-stream")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("prxy binary content"))
+			w.Write([]byte("scproxy binary content"))
 		}))
 		defer finalServer.Close()
 
 		redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/peng-mj/prxy/releases/download/V0.1.13/prxy-linux-amd64.tar.gz" {
+			if r.URL.Path == "/peng-mj/scproxy/releases/download/V0.1.13/scproxy-linux-amd64.tar.gz" {
 				http.Redirect(w, r, finalServer.URL, http.StatusFound)
 			} else {
 				w.WriteHeader(http.StatusNotFound)
@@ -108,14 +108,14 @@ func TestFetchWithRedirectFollow_GitHubOptimization(t *testing.T) {
 		}))
 		defer redirectServer.Close()
 
-		req := httptest.NewRequest("GET", "/peng-mj/prxy/releases/download/V0.1.13/prxy-linux-amd64.tar.gz", nil)
+		req := httptest.NewRequest("GET", "/peng-mj/scproxy/releases/download/V0.1.13/scproxy-linux-amd64.tar.gz", nil)
 		logger := createTestLogger()
 		cfg := createTestConfig(t.TempDir())
 		statsCollector := stats.NewCollector()
 		w := httptest.NewRecorder()
 		ctx := NewRequestContext(w, req, logger, nil, cfg, statsCollector, redirectServer.URL, "")
 
-		resp, finalURL, fromCache, err := ctx.fetchWithRedirectFollow(redirectServer.URL+"/peng-mj/prxy/releases/download/V0.1.13/prxy-linux-amd64.tar.gz", "")
+		resp, finalURL, fromCache, err := ctx.fetchWithRedirectFollow(redirectServer.URL+"/peng-mj/scproxy/releases/download/V0.1.13/scproxy-linux-amd64.tar.gz", "")
 
 		if err != nil {
 			t.Fatalf("fetchWithRedirectFollow() error = %v", err)
@@ -134,7 +134,7 @@ func TestFetchWithRedirectFollow_GitHubOptimization(t *testing.T) {
 		if ct := resp.Header.Get("Content-Type"); ct != "application/octet-stream" {
 			t.Errorf("Expected Content-Type 'application/octet-stream', got %q", ct)
 		}
-		if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "prxy-linux-amd64.tar.gz") {
+		if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "scproxy-linux-amd64.tar.gz") {
 			t.Errorf("Expected Content-Disposition to contain filename, got %q", cd)
 		}
 	})

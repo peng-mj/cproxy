@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for prxy caching functionality
+Test script for scproxy caching functionality
 Tests caching with actual file downloads from Aliyun mirror
 """
 
@@ -25,7 +25,7 @@ class Colors:
 
 
 class CacheTester:
-    """Tests prxy cache functionality"""
+    """Tests scproxy cache functionality"""
 
     def __init__(self):
         self.script_dir = Path(__file__).parent.parent
@@ -35,7 +35,7 @@ class CacheTester:
         if prxy_bin_path:
             self.prxy_bin = Path(prxy_bin_path)
         else:
-            self.prxy_bin = self.script_dir / "prxy"
+            self.prxy_bin = self.script_dir / "scproxy"
 
         self.target_url = "https://mirrors.aliyun.com"
         self.proxy_port = 9091
@@ -55,7 +55,7 @@ class CacheTester:
         self.test_file_2 = "ubuntu/pool/main/liba/libaal/libaal_1.0.6-1.dsc"
 
         # Log file
-        self.log_file = self.test_dir / "prxy.log"
+        self.log_file = self.test_dir / "scproxy.log"
 
     def log_info(self, message):
         """Print info message"""
@@ -75,7 +75,7 @@ class CacheTester:
 
     def cleanup(self):
         """Clean up test environment"""
-        self.log_info("Stopping prxy server...")
+        self.log_info("Stopping scproxy server...")
         if self.prxy_pid:
             try:
                 os.kill(self.prxy_pid, signal.SIGTERM)
@@ -89,10 +89,10 @@ class CacheTester:
 
     def setup(self):
         """Setup test environment"""
-        # Check if prxy binary exists
+        # Check if scproxy binary exists
         if not self.prxy_bin.exists():
-            self.log_error(f"prxy binary not found at {self.prxy_bin}")
-            self.log_info("Please build prxy first: go build -o prxy .")
+            self.log_error(f"scproxy binary not found at {self.prxy_bin}")
+            self.log_info("Please build scproxy first: go build -o scproxy .")
             sys.exit(1)
 
         # Create test directory
@@ -103,15 +103,15 @@ class CacheTester:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def start_prxy_server(self):
-        """Start prxy server with cache enabled"""
-        self.log_info("Starting prxy server...")
+        """Start scproxy server with cache enabled"""
+        self.log_info("Starting scproxy server...")
         self.log_info(f"Target: {self.target_url}")
         self.log_info(f"Port: {self.proxy_port}")
         self.log_info(f"Cache directory: {self.cache_dir}")
 
         config_file = self.test_dir / "config.json"
 
-        # Start prxy server
+        # Start scproxy server
         cmd = [
             str(self.prxy_bin),
             "--target", self.target_url,
@@ -134,9 +134,9 @@ class CacheTester:
         # Check if server is running
         try:
             os.kill(self.prxy_pid, 0)  # Check if process exists
-            self.log_success(f"Prxy server started (PID: {self.prxy_pid})")
+            self.log_success(f"scproxy server started (PID: {self.prxy_pid})")
         except ProcessLookupError:
-            self.log_error("Failed to start prxy server")
+            self.log_error("Failed to start scproxy server")
             with open(self.log_file, 'r') as f:
                 print(f.read())
             sys.exit(1)
@@ -281,7 +281,7 @@ class CacheTester:
 
     def test_log_display(self):
         """Display recent log entries"""
-        self.log_info("Test 6: Recent prxy log entries (last 30 lines)")
+        self.log_info("Test 6: Recent scproxy log entries (last 30 lines)")
         print("---")
 
         with open(self.log_file, 'r') as f:
@@ -303,7 +303,7 @@ class CacheTester:
     def run_tests(self):
         """Run all tests"""
         print("=" * 50)
-        print("Prxy Cache Functionality Test")
+        print("scproxy Cache Functionality Test")
         print("=" * 50)
         print()
 
@@ -344,7 +344,7 @@ class CacheTester:
             total_size = sum(f.stat().st_size for f in cache_files)
 
             print("Test results:")
-            print("  ✓ Prxy server started successfully")
+            print("  ✓ scproxy server started successfully")
             print("  ✓ First download (cache MISS)")
             print("  ✓ File was cached")
             print("  ✓ Second download (cache HIT)")

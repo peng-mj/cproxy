@@ -1,4 +1,4 @@
-package prxy
+package scproxy
 
 import (
 	"context"
@@ -6,24 +6,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Madh93/prxy/internal/cache"
-	"github.com/Madh93/prxy/internal/config"
-	"github.com/Madh93/prxy/internal/logging"
-	"github.com/Madh93/prxy/internal/stats"
-	"github.com/Madh93/prxy/internal/validation"
+	"github.com/peng-mj/scproxy/internal/cache"
+	"github.com/peng-mj/scproxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/logging"
+	"github.com/peng-mj/scproxy/internal/stats"
+	"github.com/peng-mj/scproxy/internal/validation"
 )
 
-// PrxyManager manages multiple proxy server instances.
-type PrxyManager struct {
+// scproxyManager manages multiple proxy server instances.
+type scproxyManager struct {
 	logger         *logging.Logger
 	cache          *cache.Cache
-	servers        []*Prxy        // All server instances
+	servers        []*scproxy     // All server instances
 	cfg            *config.Config // Shared configuration
 	statsCollector *stats.Collector
 }
 
-// NewPrxyManager creates a new server manager.
-func NewPrxyManager(cfg *config.Config, logger *logging.Logger, configPath string) (*PrxyManager, error) {
+// NewscproxyManager creates a new server manager.
+func NewscproxyManager(cfg *config.Config, logger *logging.Logger, configPath string) (*scproxyManager, error) {
 	// Initialize cache (shared by all servers)
 	var c *cache.Cache
 	var err error
@@ -41,7 +41,7 @@ func NewPrxyManager(cfg *config.Config, logger *logging.Logger, configPath strin
 		statsCollector.StartPeriodicWrite(configPath, 1*time.Second)
 	}
 
-	pm := &PrxyManager{
+	pm := &scproxyManager{
 		logger:         logger,
 		cache:          c,
 		cfg:            cfg,
@@ -63,7 +63,7 @@ func NewPrxyManager(cfg *config.Config, logger *logging.Logger, configPath strin
 }
 
 // createServerForRoute creates a server for a single route.
-func (pm *PrxyManager) createServerForRoute(route validation.RouteConfig, cache *cache.Cache) (*Prxy, error) {
+func (pm *scproxyManager) createServerForRoute(route validation.RouteConfig, cache *cache.Cache) (*scproxy, error) {
 	// Create server for this route
 	server, err := New(pm.cfg, route.Target, route.Port, pm.logger, pm.statsCollector, cache)
 	if err != nil {
@@ -75,11 +75,11 @@ func (pm *PrxyManager) createServerForRoute(route validation.RouteConfig, cache 
 }
 
 // Start starts all servers.
-func (pm *PrxyManager) Start() error {
+func (pm *scproxyManager) Start() error {
 	pm.logger.Info("Starting all servers...", "count", len(pm.servers))
 
 	for _, server := range pm.servers {
-		go func(s *Prxy) {
+		go func(s *scproxy) {
 			if err := s.Run(); err != nil {
 				pm.logger.Error("Server stopped", "port", s.port, "error", err)
 			}
@@ -90,7 +90,7 @@ func (pm *PrxyManager) Start() error {
 }
 
 // Shutdown gracefully shuts down all servers.
-func (pm *PrxyManager) Shutdown(ctx context.Context) error {
+func (pm *scproxyManager) Shutdown(ctx context.Context) error {
 	pm.logger.Info("Shutting down all servers...", "count", len(pm.servers))
 
 	// Stop statistics collector
@@ -103,7 +103,7 @@ func (pm *PrxyManager) Shutdown(ctx context.Context) error {
 
 	for _, server := range pm.servers {
 		wg.Add(1)
-		go func(s *Prxy) {
+		go func(s *scproxy) {
 			defer wg.Done()
 			if err := s.Shutdown(ctx); err != nil {
 				errs <- err

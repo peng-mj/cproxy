@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Cache management script for prxy
+Cache management script for scproxy
 """
 
 import json
@@ -11,10 +11,10 @@ from pathlib import Path
 
 
 class CacheManager:
-    """Manages prxy cache configuration and operations"""
+    """Manages scproxy cache configuration and operations"""
 
     def __init__(self):
-        self.config_file = Path.home() / ".prxy" / "config.json"
+        self.config_file = Path.home() / ".scproxy" / "config.json"
 
     def load_config(self):
         """Load configuration from file"""
@@ -48,7 +48,7 @@ class CacheManager:
         self.save_config(config)
         print("")
         print("Configuration updated, cache is now enabled")
-        print("Start prxy to use cache functionality")
+        print("Start scproxy to use cache functionality")
 
     def disable(self):
         """Disable cache mode"""
@@ -68,7 +68,7 @@ class CacheManager:
         self.save_config(config)
         print("")
         print("Configuration updated, cache is now disabled")
-        print("Restart prxy to stop using cache")
+        print("Restart scproxy to stop using cache")
 
     def status(self):
         """Display current cache status"""
@@ -116,10 +116,10 @@ class CacheManager:
         """Clear cache data"""
         print("Clearing cache data...")
 
-        # Check if prxy binary exists in parent directory
-        prxy_bin = Path(__file__).parent.parent / "prxy"
+        # Check if scproxy binary exists in parent directory
+        prxy_bin = Path(__file__).parent.parent / "scproxy"
         if not prxy_bin.exists():
-            print("prxy binary not found, please build first")
+            print("scproxy binary not found, please build first")
             print("   Run: make build")
             return
 
@@ -127,7 +127,7 @@ class CacheManager:
 
     def show_help(self):
         """Display help message"""
-        print("prxy Cache Management Tool")
+        print("scproxy Cache Management Tool")
         print("")
         print("Usage: python cache.py <command>")
         print("")

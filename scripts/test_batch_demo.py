@@ -24,7 +24,7 @@ def download_url(url, timeout=5):
 
 def main():
     """Main demo function"""
-    print("=== prxy Batch Proxy Functionality Demo ===")
+    print("=== scproxy Batch Proxy Functionality Demo ===")
     print()
 
     script_dir = Path(__file__).parent.parent
@@ -34,7 +34,7 @@ def main():
     if prxy_bin_path:
         prxy_bin = Path(prxy_bin_path)
     else:
-        prxy_bin = script_dir / "prxy"
+        prxy_bin = script_dir / "scproxy"
 
     test_config = script_dir / "test-config.json"
 
@@ -44,10 +44,10 @@ def main():
         print("Please create test-config.json with batch routes configuration")
         sys.exit(1)
 
-    # Check if prxy binary exists
+    # Check if scproxy binary exists
     if not prxy_bin.exists():
-        print(f"Error: prxy binary not found: {prxy_bin}")
-        print("Please build prxy first: make build")
+        print(f"Error: scproxy binary not found: {prxy_bin}")
+        print("Please build scproxy first: make build")
         sys.exit(1)
 
     print("Configuration file has 2 routes:")
@@ -61,7 +61,7 @@ def main():
 
     print("Starting service...")
 
-    # Start prxy with test configuration
+    # Start scproxy with test configuration
     cmd = [
         str(prxy_bin),
         "--config", str(test_config),

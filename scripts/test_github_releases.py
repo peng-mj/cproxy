@@ -33,12 +33,12 @@ class GitHubReleasesTester:
         if prxy_bin_path:
             self.prxy_bin = Path(prxy_bin_path)
         else:
-            self.prxy_bin = self.script_dir / "prxy"
+            self.prxy_bin = self.script_dir / "scproxy"
 
         self.target_url = "https://github.com"
         self.proxy_url = ""  # Empty for direct connection
         self.port = "8888"
-        self.test_file = "/Madh93/prxy/releases/download/v0.1.0/checksums.txt"
+        self.test_file = "/Madh93/scproxy/releases/download/v0.1.0/checksums.txt"
         self.test_url = f"http://localhost:{self.port}{self.test_file}"
         self.prxy_pid = None
         self.log_file = self.script_dir / "prxy_test.log"
@@ -80,8 +80,8 @@ class GitHubReleasesTester:
             return False, str(e)
 
     def start_prxy_server(self):
-        """Start prxy server"""
-        print(f"{Colors.GREEN}1. Starting prxy server...{Colors.NC}")
+        """Start scproxy server"""
+        print(f"{Colors.GREEN}1. Starting scproxy server...{Colors.NC}")
 
         cmd = [str(self.prxy_bin)]
 
@@ -115,7 +115,7 @@ class GitHubReleasesTester:
             print()
             return True
         except ProcessLookupError:
-            print(f"{Colors.RED}Error: prxy server failed to start. Check {self.log_file} for details.{Colors.NC}")
+            print(f"{Colors.RED}Error: scproxy server failed to start. Check {self.log_file} for details.{Colors.NC}")
             with open(self.log_file, 'r') as f:
                 print(f.read())
             return False
@@ -176,7 +176,7 @@ class GitHubReleasesTester:
         """Verify file integrity"""
         print(f"{Colors.GREEN}4. Verifying file integrity...{Colors.NC}")
 
-        direct_url = "https://github.com/Madh93/prxy/releases/download/v0.1.0/checksums.txt"
+        direct_url = "https://github.com/Madh93/scproxy/releases/download/v0.1.0/checksums.txt"
         proxy_file = self.script_dir / "test_output.txt"
         direct_file = self.script_dir / "test_direct.txt"
 
@@ -208,7 +208,7 @@ class GitHubReleasesTester:
         """Check cache directory"""
         print(f"{Colors.GREEN}5. Checking cache directory...{Colors.NC}")
 
-        cache_dir = Path.home() / ".prxy" / "cache" / "data"
+        cache_dir = Path.home() / ".scproxy" / "cache" / "data"
 
         if cache_dir.exists():
             cached_files = list(cache_dir.rglob("checksums.txt"))
@@ -288,10 +288,10 @@ def main():
         prxy_bin = Path(prxy_bin_path)
     else:
         script_dir = Path(__file__).parent.parent
-        prxy_bin = script_dir / "prxy"
+        prxy_bin = script_dir / "scproxy"
 
     if not prxy_bin.exists():
-        print(f"{Colors.RED}Error: prxy binary not found at {prxy_bin}.{Colors.NC}")
+        print(f"{Colors.RED}Error: scproxy binary not found at {prxy_bin}.{Colors.NC}")
         if not os.environ.get('PRXY_BIN_PATH'):
             print(f"{Colors.RED}Please run 'make build' first.{Colors.NC}")
         sys.exit(1)

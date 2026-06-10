@@ -1,4 +1,4 @@
-package prxy
+package scproxy
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Madh93/prxy/internal/cache"
+	"github.com/peng-mj/scproxy/internal/cache"
 )
 
 func (ctx *RequestContext) handleCachedResponse(cached *cache.CachedResponse) {

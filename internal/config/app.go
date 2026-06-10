@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Madh93/prxy/internal/stats"
-	"github.com/Madh93/prxy/internal/validation"
+	"github.com/peng-mj/scproxy/internal/stats"
+	"github.com/peng-mj/scproxy/internal/validation"
 )
 
 // AppConfig represents the application configuration loaded from JSON file.
@@ -67,7 +67,7 @@ func GetDefaultConfigPath() string {
 	if err != nil {
 		return "./config.json"
 	}
-	return filepath.Join(homeDir, ".prxy", "config.json")
+	return filepath.Join(homeDir, ".scproxy", "config.json")
 }
 
 // expandPath expands ~ to user's home directory.

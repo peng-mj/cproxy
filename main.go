@@ -1,4 +1,4 @@
-// Package main is the entry point for the prxy application.
+// Package main is the entry point for the scproxy application.
 //
 // It defines the command-line interface (CLI) using the pflag library,
 // handles configuration loading from flags, sets up structured logging, and
@@ -15,12 +15,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Madh93/prxy/internal/cache"
-	"github.com/Madh93/prxy/internal/config"
-	"github.com/Madh93/prxy/internal/logging"
-	"github.com/Madh93/prxy/internal/prxy"
-	"github.com/Madh93/prxy/internal/stats"
-	"github.com/Madh93/prxy/internal/version"
+	"github.com/peng-mj/scproxy/internal/cache"
+	"github.com/peng-mj/scproxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/logging"
+	"github.com/peng-mj/scproxy/internal/scproxy"
+	"github.com/peng-mj/scproxy/internal/stats"
+	"github.com/peng-mj/scproxy/internal/version"
 	"github.com/spf13/pflag"
 )
 
@@ -34,7 +34,7 @@ var (
 	hostFlag = pflag.StringP("host", "H", "", "host to listen on (default: 0.0.0.0)")
 
 	// Config file
-	configFlag = pflag.StringP("config", "c", "./cache/prxy.json", "config file path")
+	configFlag = pflag.StringP("config", "c", "./cache/scproxy.json", "config file path")
 
 	// Cache flags
 	cacheFlag      = pflag.Bool("cache", false, "enable caching")
@@ -65,11 +65,11 @@ func printUsage() {
 	pflag.PrintDefaults()
 	fmt.Fprintln(os.Stderr, "\nExamples:")
 	fmt.Fprintln(os.Stderr, "  # Single target mode")
-	fmt.Fprintln(os.Stderr, "  prxy --target https://example.com --proxy http://proxy:8080 --port 8080")
+	fmt.Fprintln(os.Stderr, "  scproxy --target https://example.com --proxy http://proxy:8080 --port 8080")
 	fmt.Fprintln(os.Stderr, "\n  # Batch mode (from config file)")
-	fmt.Fprintln(os.Stderr, "  prxy --proxy http://proxy:8080")
+	fmt.Fprintln(os.Stderr, "  scproxy --proxy http://proxy:8080")
 	fmt.Fprintln(os.Stderr, "\n  # Clear cache")
-	fmt.Fprintln(os.Stderr, "  prxy --clear-cache --yes")
+	fmt.Fprintln(os.Stderr, "  scproxy --clear-cache --yes")
 }
 
 // printVersion displays version information
@@ -79,8 +79,8 @@ func printVersion() {
 
 // printSummary displays statistics summary
 func printSummary() {
-	// Get config file path
-	configPath := "./cache/prxy.json"
+	// Load config to get statistics
+	configPath := "./cache/scproxy.json"
 	if *configFlag != "" {
 		configPath = *configFlag
 	}
@@ -89,9 +89,9 @@ func printSummary() {
 	appConfig, err := config.LoadAppConfig(configPath)
 	if err != nil {
 		// Try loading from stats file as fallback
-		statsFile := "./prxy_stats.json"
+		statsFile := "./scproxy_stats.json"
 		if err := stats.PrintSummary(statsFile); err != nil {
-			fmt.Fprintf(os.Stderr, "No statistics found. Run prxy with cache enabled first.\n")
+			fmt.Fprintf(os.Stderr, "No statistics found. Run scproxy with cache enabled first.\n")
 			os.Exit(1)
 		}
 		return
@@ -99,7 +99,7 @@ func printSummary() {
 
 	// Check if summary exists
 	if appConfig.Summary == nil {
-		fmt.Fprintf(os.Stderr, "No statistics found. Run prxy with cache enabled first.\n")
+		fmt.Fprintf(os.Stderr, "No statistics found. Run scproxy with cache enabled first.\n")
 		os.Exit(1)
 	}
 
@@ -156,7 +156,7 @@ func main() {
 	// Save CLI parameters to config file
 	configPath := flags.ConfigPath
 	if configPath == "" {
-		configPath = "./cache/prxy.json"
+		configPath = "./cache/scproxy.json"
 	}
 	if err := config.UpdateAndSaveAppConfig(configPath, flags, cfg); err != nil {
 		// Log warning but don't fail - the server can still run
@@ -171,9 +171,9 @@ func main() {
 
 	logger.Debug("Configuration loaded successfully", "config", cfg)
 
-	// Start prxy in batch mode (always use PrxyManager now)
-	logger.Info("Starting prxy...", "routes", len(cfg.Routes))
-	manager, err := prxy.NewPrxyManager(cfg, logger, configPath)
+	// Start scproxy in batch mode (always use scproxyManager now)
+	logger.Info("Starting scproxy...", "routes", len(cfg.Routes))
+	manager, err := scproxy.NewscproxyManager(cfg, logger, configPath)
 	if err != nil {
 		log.Fatalf("Failed to create proxy manager: %v", err)
 	}
@@ -200,7 +200,7 @@ func main() {
 		log.Fatalf("Error during graceful shutdown: %v", err)
 	}
 
-	logger.Info("All done! prxy has been shut down.")
+	logger.Info("All done! scproxy has been shut down.")
 
 	// Print statistics summary
 	printSummary()
@@ -216,7 +216,7 @@ func clearCache(flags *config.CLIFlags) error {
 	// Get configuration file path
 	configPath := flags.ConfigPath
 	if configPath == "" {
-		configPath = "./cache/prxy.json"
+		configPath = "./cache/scproxy.json"
 	}
 
 	// Load configuration

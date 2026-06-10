@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"github.com/Madh93/prxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/config"
 )
 
 // Cache represents an HTTP cache.

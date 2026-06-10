@@ -1,4 +1,4 @@
-package prxy
+package scproxy
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/Madh93/prxy/internal/cache"
+	"github.com/peng-mj/scproxy/internal/cache"
 )
 
 func (ctx *RequestContext) fetchWithRedirectFollow(targetURL string, proxyURL string) (*http.Response, string, bool, error) {

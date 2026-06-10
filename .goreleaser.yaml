@@ -20,8 +20,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/Madh93/prxy/internal/version.appVersion={{ .Version }}
-      - -X github.com/Madh93/prxy/internal/version.commitHash={{ .FullCommit }}
+      - -X github.com/peng-mj/scproxy/internal/version.appVersion={{ .Version }}
+      - -X github.com/peng-mj/scproxy/internal/version.commitHash={{ .FullCommit }}
     goos:
       - linux
       - darwin
@@ -57,21 +57,21 @@ archives:
 kos:
   - build: binary
     repositories:
-      - ghcr.io/madh93/prxy
-      - madh93/prxy
+      - ghcr.io/peng-mj/scproxy
+      - peng-mj/scproxy
     tags:
       - "{{ .Version }}"
       - latest
     labels:
-      org.opencontainers.image.authors: Madh93
+      org.opencontainers.image.authors: peng-mj
       org.opencontainers.image.created: "{{ .Date }}"
-      org.opencontainers.image.description: Command-line reverse proxy for forwarding HTTP requests through an outbound proxy
+      org.opencontainers.image.description: HTTP reverse proxy with intelligent caching
       org.opencontainers.image.licenses: MIT
       org.opencontainers.image.source: "{{ .GitURL }}"
       org.opencontainers.image.revision: "{{ .FullCommit }}"
       org.opencontainers.image.title: "{{ .ProjectName }}"
       org.opencontainers.image.url: "{{ .GitURL }}"
-      org.opencontainers.image.vendor: Madh93
+      org.opencontainers.image.vendor: peng-mj
       org.opencontainers.image.version: "{{ .Version }}"
     sbom: none
     bare: true
@@ -83,11 +83,11 @@ kos:
 
 homebrew_casks:
   - repository:
-      owner: Madh93
+      owner: peng-mj
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/Madh93/prxy
-    description: Command-line reverse proxy for forwarding HTTP requests through an outbound proxy
+    homepage: https://github.com/peng-mj/scproxy
+    description: HTTP reverse proxy with intelligent caching
     license: MIT
     commit_msg_template: "feat({{ .ProjectName }}): Brew cask update to version {{ .Tag }}"
 
@@ -107,8 +107,8 @@ changelog:
 release:
   draft: true
   github:
-    owner: Madh93
-    name: prxy
+    owner: peng-mj
+    name: scproxy
   footer: >-
 
     ---

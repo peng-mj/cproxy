@@ -43,5 +43,7 @@ coverage.html
 *.xz
 *.meta
 
+.codegraph
+
 __pycache__
 *.json
