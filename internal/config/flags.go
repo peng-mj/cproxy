@@ -26,4 +26,12 @@ type CLIFlags struct {
 	VHostEnable  bool
 	VHostDisable bool
 	VHostPort    int
+
+	// TLS/HTTPS flags
+	TLSEnable         bool
+	TLSDisable        bool
+	TLSPort           int
+	TLSCertDir        string
+	TLSVerifyUpstream bool
+	TLSNoRedirectHTTP bool
 }

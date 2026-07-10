@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/peng-mj/scproxy/internal/cache"
+	"github.com/peng-mj/scproxy/internal/cert"
 	"github.com/peng-mj/scproxy/internal/config"
 	dnsserver "github.com/peng-mj/scproxy/internal/dns"
 	"github.com/peng-mj/scproxy/internal/logging"
@@ -25,6 +26,7 @@ type scproxyManager struct {
 	statsCollector *stats.Collector
 	dnsServer      *dnsserver.Server // DNS proxy server (nil if disabled)
 	vhostServer    *VHostServer      // VHost reverse proxy server (nil if disabled)
+	certMgr        *cert.Manager     // Certificate manager (nil if TLS disabled)
 }
 
 // NewscproxyManager creates a new server manager.
@@ -64,14 +66,31 @@ func NewscproxyManager(cfg *config.Config, logger *logging.Logger, configPath st
 		pm.servers = append(pm.servers, server)
 	}
 
+	// Initialize certificate manager if TLS is enabled
+	var certMgr *cert.Manager
+	if cfg.TLS.Enabled {
+		cm, err := cert.NewManager(cfg.TLS.CertDir, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize certificate manager: %v", err)
+		}
+		certMgr = cm
+		// Pre-generate certificates for all known domains
+		certMgr.PreGenerate(extractDomains(cfg.Routes))
+		logger.Info("Certificate manager ready",
+			"certDir", cfg.TLS.CertDir,
+			"caCert", cm.CACertPath(),
+			"tlsPort", cfg.TLS.Port)
+	}
+
 	// Initialize VHost server if enabled
 	if cfg.VHost.Enabled {
-		vs, err := NewVHostServer(cfg, cfg.VHost.Port, logger, statsCollector, c)
+		vs, err := NewVHostServer(cfg, cfg.VHost.Port, logger, statsCollector, c, certMgr)
 		if err != nil {
 			pm.Shutdown(context.Background())
 			return nil, fmt.Errorf("failed to create VHost server: %v", err)
 		}
 		pm.vhostServer = vs
+		pm.certMgr = certMgr
 	}
 
 	// Initialize DNS server if enabled
@@ -115,8 +134,12 @@ func (pm *scproxyManager) Start() error {
 
 	if pm.vhostServer != nil {
 		if err := pm.vhostServer.Start(); err != nil {
-			pm.logger.Warn("VHost server failed to start, continuing without it", "error", err)
+			pm.logger.Warn("VHost HTTP server failed to start, continuing without it", "error", err)
 			pm.vhostServer = nil
+		} else if pm.certMgr != nil && pm.cfg.TLS.Enabled {
+			if err := pm.vhostServer.StartTLS(pm.cfg.TLS.Port); err != nil {
+				pm.logger.Warn("VHost HTTPS server failed to start, continuing without it", "error", err)
+			}
 		}
 	}
 

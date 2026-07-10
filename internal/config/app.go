@@ -24,6 +24,7 @@ type AppConfig struct {
 	Logging LoggingConfig            `json:"logging"` // Logging configuration
 	DNS     DNSConfig                `json:"dns"`     // DNS proxy configuration
 	VHost   VHostConfig              `json:"vhost"`   // Virtual host reverse proxy configuration
+	TLS     TLSConfig                `json:"tls"`     // TLS/HTTPS configuration
 	Routes  []validation.RouteConfig `json:"routes"`  // Routes configuration for batch mode
 	Summary *stats.AllStats          `json:"summary"` // Statistics summary
 }
@@ -40,6 +41,15 @@ type DNSConfig struct {
 type VHostConfig struct {
 	Enabled bool `json:"enabled"` // Enable virtual host mode
 	Port    int  `json:"port"`    // Port to listen on (default 80)
+}
+
+// TLSConfig holds HTTPS/TLS certificate configuration.
+type TLSConfig struct {
+	Enabled            bool   `json:"enabled"`            // Enable HTTPS TLS listener
+	Port               int    `json:"port"`               // TLS listen port (default 443)
+	CertDir            string `json:"certDir"`            // Certificate storage directory (default "./certs")
+	SkipUpstreamVerify bool   `json:"skipUpstreamVerify"` // Skip TLS verification for upstream targets (default true)
+	RedirectHTTP       bool   `json:"redirectHTTP"`       // Redirect HTTP :80 to HTTPS (default true)
 }
 
 // CacheConfig represents cache-specific configuration.
@@ -82,6 +92,13 @@ func defaultAppConfig() *AppConfig {
 		VHost: VHostConfig{
 			Enabled: true,
 			Port:    80,
+		},
+		TLS: TLSConfig{
+			Enabled:            true,
+			Port:               443,
+			CertDir:            "./certs",
+			SkipUpstreamVerify: true,
+			RedirectHTTP:       true,
 		},
 		Routes: []validation.RouteConfig{},
 	}

@@ -1,6 +1,7 @@
 package scproxy
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -44,6 +45,9 @@ func NewProxyHandler(
 		ExpectContinueTimeout: 1 * time.Second,
 		ResponseHeaderTimeout: 60 * time.Second,
 		ForceAttemptHTTP2:     false,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: cfg.TLS.SkipUpstreamVerify,
+		},
 	}
 	if cfg.Proxy != "" {
 		parsedProxyURL, err := url.Parse(cfg.Proxy)

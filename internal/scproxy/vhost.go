@@ -2,6 +2,7 @@ package scproxy
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/peng-mj/scproxy/internal/cache"
+	"github.com/peng-mj/scproxy/internal/cert"
 	"github.com/peng-mj/scproxy/internal/config"
 	"github.com/peng-mj/scproxy/internal/logging"
 	"github.com/peng-mj/scproxy/internal/stats"
@@ -25,12 +27,16 @@ type VHostServer struct {
 	statsCollector *stats.Collector
 	handlers       map[string]http.Handler // host → proxy handler (with caching)
 	hostnames      map[string]string       // host → target URL
-	server         *http.Server
+	server         *http.Server            // HTTP server (:80)
+	tlsServer      *http.Server            // HTTPS server (:443)
+	certMgr        *cert.Manager
+	redirectHTTP   bool // Redirect HTTP :80 to HTTPS
 	mu             sync.RWMutex
 }
 
 // NewVHostServer creates a new virtual host reverse proxy server.
-func NewVHostServer(cfg *config.Config, port int, logger *logging.Logger, statsCollector *stats.Collector, c *cache.Cache) (*VHostServer, error) {
+// certMgr may be nil if TLS is disabled.
+func NewVHostServer(cfg *config.Config, port int, logger *logging.Logger, statsCollector *stats.Collector, c *cache.Cache, certMgr *cert.Manager) (*VHostServer, error) {
 	s := &VHostServer{
 		cfg:            cfg,
 		port:           port,
@@ -39,6 +45,8 @@ func NewVHostServer(cfg *config.Config, port int, logger *logging.Logger, statsC
 		statsCollector: statsCollector,
 		handlers:       make(map[string]http.Handler),
 		hostnames:      make(map[string]string),
+		certMgr:        certMgr,
+		redirectHTTP:   cfg.TLS.Enabled && cfg.TLS.RedirectHTTP,
 	}
 
 	for _, route := range cfg.Routes {
@@ -71,7 +79,7 @@ func NewVHostServer(cfg *config.Config, port int, logger *logging.Logger, statsC
 	return s, nil
 }
 
-// Start starts the virtual host reverse proxy server.
+// Start starts the virtual host reverse proxy HTTP server.
 func (s *VHostServer) Start() error {
 	addr := fmt.Sprintf(":%d", s.port)
 
@@ -81,25 +89,74 @@ func (s *VHostServer) Start() error {
 		return fmt.Errorf("failed to bind VHost %s: %w", addr, err)
 	}
 
+	// If TLS is enabled with redirect, HTTP handler returns 301 to HTTPS
+	var handler http.Handler = s
+	if s.redirectHTTP {
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			target := "https://" + stripPort(r.Host) + r.URL.RequestURI()
+			http.Redirect(w, r, target, http.StatusMovedPermanently)
+		})
+	}
+
 	s.server = &http.Server{
-		Handler: s,
+		Handler: handler,
 	}
 
 	go func() {
-		s.logger.Info("VHost server starting", "addr", addr, "routes", len(s.handlers))
+		s.logger.Info("VHost HTTP server starting", "addr", addr, "routes", len(s.handlers), "redirect", s.redirectHTTP)
 		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			s.logger.Error("VHost server error", "error", err)
+			s.logger.Error("VHost HTTP server error", "error", err)
 		}
 	}()
 
 	return nil
 }
 
-// Shutdown gracefully shuts down the virtual host server.
+// StartTLS starts the HTTPS listener using the certificate manager for SNI-based certs.
+func (s *VHostServer) StartTLS(port int) error {
+	if s.certMgr == nil {
+		return fmt.Errorf("cannot start TLS without certificate manager")
+	}
+
+	addr := fmt.Sprintf(":%d", port)
+
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to bind VHost TLS %s: %w", addr, err)
+	}
+
+	tlsListener := tls.NewListener(listener, s.certMgr.TLSConfig())
+
+	s.tlsServer = &http.Server{
+		Handler: s,
+	}
+
+	go func() {
+		s.logger.Info("VHost HTTPS server starting", "addr", addr, "routes", len(s.handlers))
+		if err := s.tlsServer.Serve(tlsListener); err != nil && err != http.ErrServerClosed {
+			s.logger.Error("VHost HTTPS server error", "error", err)
+		}
+	}()
+
+	return nil
+}
+
+// Shutdown gracefully shuts down the virtual host servers.
 func (s *VHostServer) Shutdown(ctx context.Context) error {
-	s.logger.Info("Shutting down VHost server...")
+	s.logger.Info("Shutting down VHost servers...")
+	var errs []error
+	if s.tlsServer != nil {
+		if err := s.tlsServer.Shutdown(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	if s.server != nil {
-		return s.server.Shutdown(ctx)
+		if err := s.server.Shutdown(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("VHost shutdown errors: %v", errs)
 	}
 	return nil
 }
@@ -146,4 +203,12 @@ func (s *VHostServer) Hostnames() []string {
 		names = append(names, h)
 	}
 	return names
+}
+
+// stripPort removes the :port suffix from a host string.
+func stripPort(host string) string {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		return h
+	}
+	return host
 }

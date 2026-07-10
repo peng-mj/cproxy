@@ -37,6 +37,7 @@ type Config struct {
 	Logging LoggingConfig            // Logging configuration (from JSON config)
 	DNS     DNSConfig                // DNS proxy configuration (from JSON config)
 	VHost   VHostConfig              // Virtual host configuration (from JSON config)
+	TLS     TLSConfig                // TLS/HTTPS configuration (from JSON config)
 	Routes  []validation.RouteConfig // Routes configuration (from JSON config)
 }
 
@@ -178,6 +179,41 @@ func New(flags *CLIFlags) (*Config, error) {
 		vhostConfig.Port = flags.VHostPort
 	}
 
+	// TLS config: apply defaults for missing section, then CLI overrides
+	tlsConfig := appConfig.TLS
+	if !tlsConfig.Enabled && tlsConfig.Port == 0 && tlsConfig.CertDir == "" {
+		// TLS section was not present in JSON config, enable by default
+		tlsConfig.Enabled = true
+		tlsConfig.Port = 443
+		tlsConfig.CertDir = "./certs"
+		tlsConfig.SkipUpstreamVerify = true
+		tlsConfig.RedirectHTTP = true
+	}
+	if tlsConfig.Port == 0 {
+		tlsConfig.Port = 443
+	}
+	if tlsConfig.CertDir == "" {
+		tlsConfig.CertDir = "./certs"
+	}
+	if flags.TLSDisable {
+		tlsConfig.Enabled = false
+	}
+	if flags.TLSEnable {
+		tlsConfig.Enabled = true
+	}
+	if flags.TLSPort > 0 {
+		tlsConfig.Port = flags.TLSPort
+	}
+	if flags.TLSCertDir != "" {
+		tlsConfig.CertDir = flags.TLSCertDir
+	}
+	if flags.TLSVerifyUpstream {
+		tlsConfig.SkipUpstreamVerify = false
+	}
+	if flags.TLSNoRedirectHTTP {
+		tlsConfig.RedirectHTTP = false
+	}
+
 	cfg := &Config{
 		Proxy:   proxy,
 		Host:    hostConfig,
@@ -185,11 +221,12 @@ func New(flags *CLIFlags) (*Config, error) {
 		Logging: loggingConfig,
 		DNS:     dnsConfig,
 		VHost:   vhostConfig,
+		TLS:     tlsConfig,
 		Routes:  appConfig.Routes,
 	}
 
 	// 9. Validate the configuration
-	if err := validateConfig(proxy, appConfig.Routes, vhostConfig.Port, vhostConfig.Enabled); err != nil {
+	if err := validateConfig(proxy, appConfig.Routes, vhostConfig.Port, vhostConfig.Enabled, tlsConfig); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
@@ -210,7 +247,7 @@ func splitUpstream(s string) []string {
 }
 
 // validateConfig checks the validity of the configuration.
-func validateConfig(proxy string, routes []validation.RouteConfig, vhostPort int, vhostEnabled bool) error {
+func validateConfig(proxy string, routes []validation.RouteConfig, vhostPort int, vhostEnabled bool, tlsCfg TLSConfig) error {
 	// Validate routes
 	if err := validation.ValidateRoutes(routes); err != nil {
 		return err
@@ -234,6 +271,18 @@ func validateConfig(proxy string, routes []validation.RouteConfig, vhostPort int
 			if route.Port == vhostPort {
 				return fmt.Errorf("vhost port %d conflicts with a route port", vhostPort)
 			}
+		}
+	}
+
+	// Check TLS port doesn't conflict with route or vhost ports
+	if tlsCfg.Enabled {
+		for _, route := range routes {
+			if route.Port == tlsCfg.Port {
+				return fmt.Errorf("TLS port %d conflicts with a route port", tlsCfg.Port)
+			}
+		}
+		if vhostEnabled && tlsCfg.Port == vhostPort {
+			return fmt.Errorf("TLS port %d conflicts with vhost port", tlsCfg.Port)
 		}
 	}
 
@@ -266,6 +315,7 @@ func UpdateAndSaveAppConfig(configPath string, flags *CLIFlags, cfg *Config) err
 	appConfig.Cache = cfg.Cache
 	appConfig.DNS = cfg.DNS
 	appConfig.VHost = cfg.VHost
+	appConfig.TLS = cfg.TLS
 
 	if cfg.Proxy != "" {
 		appConfig.Proxy = cfg.Proxy
