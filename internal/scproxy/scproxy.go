@@ -7,13 +7,11 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/peng-mj/scproxy/internal/cache"
 	"github.com/peng-mj/scproxy/internal/config"
@@ -35,16 +33,11 @@ type scproxy struct {
 
 // New creates and configures a new scproxy instance.
 func New(cfg *config.Config, target string, port int, logger *logging.Logger, statsCollector *stats.Collector, sharedCache *cache.Cache) (*scproxy, error) {
-	// 0. Ensure to parse URLs
-	parsedTargetURL, err := url.Parse(target)
-	if err != nil {
-		return nil, fmt.Errorf("invalid target URL %q: %w", target, err)
-	}
-
 	var c *cache.Cache
 	if sharedCache != nil {
 		c = sharedCache
 	} else if cfg.Cache.Enabled {
+		var err error
 		c, err = cache.New(cfg.Cache)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize cache: %v", err)
@@ -53,79 +46,23 @@ func New(cfg *config.Config, target string, port int, logger *logging.Logger, st
 			cfg.Cache.Directory, "maxTotalSizeMB", cfg.Cache.MaxTotalSizeMB)
 	}
 
-	// 2. Creates Reverse Proxy Handler
-	reverseProxyHandler := httputil.NewSingleHostReverseProxy(parsedTargetURL)
-
-	// 2.1 Use the outbound HTTP Proxy for the transport (if provided)
-	transport := &http.Transport{
-		// Configure timeouts to prevent hanging on slow or broken connections
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second, // Connection timeout
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		ResponseHeaderTimeout: 60 * time.Second, // Timeout waiting for response headers
-		// Disable HTTP/2 for better compatibility with mirror servers
-		ForceAttemptHTTP2: false,
-	}
-	if cfg.Proxy != "" {
-		parsedProxyURL, err := url.Parse(cfg.Proxy)
-		if err != nil {
-			return nil, fmt.Errorf("invalid proxy URL %q: %w", cfg.Proxy, err)
-		}
-		transport.Proxy = http.ProxyURL(parsedProxyURL)
-		logger.Info("Using outbound proxy", "proxy", cfg.Proxy)
-	} else {
-		logger.Info("No outbound proxy configured, using direct connection")
-	}
-	reverseProxyHandler.Transport = transport
-
-	// 2.2 Ensure the Host header is rewritten to the target's host.
-	originalDirector := reverseProxyHandler.Director
-	reverseProxyHandler.Director = func(req *http.Request) {
-		originalDirector(req)
-		req.Host = parsedTargetURL.Host
+	handler, targetHost, err := NewProxyHandler(cfg, target, logger, statsCollector, c)
+	if err != nil {
+		return nil, err
 	}
 
-	// 2.3 Custom error handler for better logging and response.
-	reverseProxyHandler.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, err error) {
-		logger.Error("Reverse proxy error", "url", req.URL.String(), "error", err)
-
-		// If this is a streaming cache writer, mark it as aborted
-		if scw, ok := rw.(*streamingCacheWriter); ok {
-			scw.cleanup()
-		}
-
-		http.Error(rw, "Proxy Error: "+err.Error(), http.StatusBadGateway)
-	}
-
-	// 3. Wrap with caching handler if enabled
-	var handler http.Handler
-	if c != nil {
-		handler = newCachingHandler(reverseProxyHandler, c, logger, cfg, target, parsedTargetURL.Host, statsCollector)
-		logger.Info("Caching enabled")
-	} else {
-		handler = reverseProxyHandler
-		logger.Info("Caching disabled")
-	}
-
-	// 4. Creates HTTP httpServer
 	httpServer := &http.Server{
 		Addr:    net.JoinHostPort(cfg.Host, strconv.Itoa(port)),
 		Handler: handler,
 	}
 
-	// Create main scproxy struct.
 	scproxy := &scproxy{
 		logger:         logger,
 		server:         httpServer,
 		cache:          c,
 		cfg:            cfg,
 		target:         target,
-		targetHost:     parsedTargetURL.Host,
+		targetHost:     targetHost,
 		port:           port,
 		statsCollector: statsCollector,
 	}

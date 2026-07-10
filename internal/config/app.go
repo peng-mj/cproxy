@@ -22,8 +22,24 @@ type AppConfig struct {
 	Host    string                   `json:"host"`    // Server listening host
 	Cache   CacheConfig              `json:"cache"`   // Cache configuration
 	Logging LoggingConfig            `json:"logging"` // Logging configuration
+	DNS     DNSConfig                `json:"dns"`     // DNS proxy configuration
+	VHost   VHostConfig              `json:"vhost"`   // Virtual host reverse proxy configuration
 	Routes  []validation.RouteConfig `json:"routes"`  // Routes configuration for batch mode
 	Summary *stats.AllStats          `json:"summary"` // Statistics summary
+}
+
+// DNSConfig holds DNS proxy server configuration.
+type DNSConfig struct {
+	Enabled  bool     `json:"enabled"`  // Enable DNS server
+	Addr     string   `json:"addr"`     // Listen address (e.g. ":53")
+	Upstream []string `json:"upstream"` // Upstream DNS servers (e.g. ["8.8.8.8:53"])
+	ProxyIP  string   `json:"proxyIP"`  // IP to return for proxied domains (default "127.0.0.1")
+}
+
+// VHostConfig holds virtual host reverse proxy configuration.
+type VHostConfig struct {
+	Enabled bool `json:"enabled"` // Enable virtual host mode
+	Port    int  `json:"port"`    // Port to listen on (default 80)
 }
 
 // CacheConfig represents cache-specific configuration.
@@ -56,6 +72,16 @@ func defaultAppConfig() *AppConfig {
 		Logging: LoggingConfig{
 			Level:  LogLevelInfo,
 			Output: LogOutputStdout,
+		},
+		DNS: DNSConfig{
+			Enabled:  true,
+			Addr:     ":53",
+			Upstream: []string{"8.8.8.8:53"},
+			ProxyIP:  "127.0.0.1",
+		},
+		VHost: VHostConfig{
+			Enabled: true,
+			Port:    80,
 		},
 		Routes: []validation.RouteConfig{},
 	}

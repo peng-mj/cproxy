@@ -23,6 +23,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/peng-mj/scproxy/internal/validation"
 )
@@ -34,6 +35,8 @@ type Config struct {
 	Host    string                   // Server listening host (from JSON config)
 	Cache   CacheConfig              // Cache configuration (from JSON config)
 	Logging LoggingConfig            // Logging configuration (from JSON config)
+	DNS     DNSConfig                // DNS proxy configuration (from JSON config)
+	VHost   VHostConfig              // Virtual host configuration (from JSON config)
 	Routes  []validation.RouteConfig // Routes configuration (from JSON config)
 }
 
@@ -121,24 +124,93 @@ func New(flags *CLIFlags) (*Config, error) {
 		hostConfig = host
 	}
 
+	// DNS config: apply defaults for missing section, then CLI overrides
+	dnsConfig := appConfig.DNS
+	if !dnsConfig.Enabled && dnsConfig.Addr == "" && len(dnsConfig.Upstream) == 0 && dnsConfig.ProxyIP == "" {
+		// DNS section was not present in JSON config, enable by default
+		dnsConfig.Enabled = true
+		dnsConfig.Addr = ":53"
+		dnsConfig.Upstream = []string{"8.8.8.8:53"}
+		dnsConfig.ProxyIP = "127.0.0.1"
+	}
+	if dnsConfig.Addr == "" {
+		dnsConfig.Addr = ":53"
+	}
+	if len(dnsConfig.Upstream) == 0 {
+		dnsConfig.Upstream = []string{"8.8.8.8:53"}
+	}
+	if dnsConfig.ProxyIP == "" {
+		dnsConfig.ProxyIP = "127.0.0.1"
+	}
+	if flags.DNSDisable {
+		dnsConfig.Enabled = false
+	}
+	if flags.DNSEnable {
+		dnsConfig.Enabled = true
+	}
+	if flags.DNSAddr != "" {
+		dnsConfig.Addr = flags.DNSAddr
+	}
+	if flags.DNSUpstream != "" {
+		dnsConfig.Upstream = splitUpstream(flags.DNSUpstream)
+	}
+	if flags.DNSProxyIP != "" {
+		dnsConfig.ProxyIP = flags.DNSProxyIP
+	}
+
+	// VHost config: apply defaults for missing section, then CLI overrides
+	vhostConfig := appConfig.VHost
+	if !vhostConfig.Enabled && vhostConfig.Port == 0 {
+		// VHost section was not present in JSON config, enable by default
+		vhostConfig.Enabled = true
+		vhostConfig.Port = 80
+	}
+	if vhostConfig.Port == 0 {
+		vhostConfig.Port = 80
+	}
+	if flags.VHostDisable {
+		vhostConfig.Enabled = false
+	}
+	if flags.VHostEnable {
+		vhostConfig.Enabled = true
+	}
+	if flags.VHostPort > 0 {
+		vhostConfig.Port = flags.VHostPort
+	}
+
 	cfg := &Config{
 		Proxy:   proxy,
 		Host:    hostConfig,
 		Cache:   cacheConfig,
 		Logging: loggingConfig,
+		DNS:     dnsConfig,
+		VHost:   vhostConfig,
 		Routes:  appConfig.Routes,
 	}
 
 	// 9. Validate the configuration
-	if err := validateConfig(proxy, appConfig.Routes); err != nil {
+	if err := validateConfig(proxy, appConfig.Routes, vhostConfig.Port, vhostConfig.Enabled); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
 	return cfg, nil
 }
 
+// splitUpstream splits a comma-separated list of DNS upstream servers.
+func splitUpstream(s string) []string {
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
 // validateConfig checks the validity of the configuration.
-func validateConfig(proxy string, routes []validation.RouteConfig) error {
+func validateConfig(proxy string, routes []validation.RouteConfig, vhostPort int, vhostEnabled bool) error {
 	// Validate routes
 	if err := validation.ValidateRoutes(routes); err != nil {
 		return err
@@ -154,6 +226,15 @@ func validateConfig(proxy string, routes []validation.RouteConfig) error {
 	// Check if we have at least one route
 	if len(routes) == 0 {
 		return fmt.Errorf("no routes configured. Please add routes to config file or use --target and --port")
+	}
+
+	// Check VHost port doesn't conflict with route ports
+	if vhostEnabled {
+		for _, route := range routes {
+			if route.Port == vhostPort {
+				return fmt.Errorf("vhost port %d conflicts with a route port", vhostPort)
+			}
+		}
 	}
 
 	return nil
@@ -183,6 +264,8 @@ func UpdateAndSaveAppConfig(configPath string, flags *CLIFlags, cfg *Config) err
 
 	appConfig.Host = cfg.Host
 	appConfig.Cache = cfg.Cache
+	appConfig.DNS = cfg.DNS
+	appConfig.VHost = cfg.VHost
 
 	if cfg.Proxy != "" {
 		appConfig.Proxy = cfg.Proxy

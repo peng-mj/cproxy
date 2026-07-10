@@ -14,4 +14,16 @@ type CLIFlags struct {
 	LogOutput   string
 	ClearCache  bool
 	Yes         bool
+
+	// DNS proxy flags
+	DNSEnable   bool
+	DNSDisable  bool
+	DNSAddr     string
+	DNSUpstream string
+	DNSProxyIP  string
+
+	// VHost reverse proxy flags
+	VHostEnable  bool
+	VHostDisable bool
+	VHostPort    int
 }
