@@ -24,7 +24,7 @@ type CachedResponse struct {
 // CacheKey represents a cache key.
 type CacheKey struct {
 	Method        string // HTTP method
-	Host          string // Request host (for cache isolation, not used in hash)
+	Host          string // Request host (included in hash for domain isolation)
 	Path          string // Request path (without domain)
 	Query         string // Query string
 	Authorization string // Authorization header (if caching auth requests)

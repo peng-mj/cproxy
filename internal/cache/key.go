@@ -9,8 +9,8 @@ import (
 )
 
 // GenerateCacheKey generates a SHA256 cache key from an HTTP request.
-// The key is based on the method, path, query, and authorization header (if enabled).
-// Host is used for cache isolation but is NOT included in the hash generation.
+// The key is based on the method, host, path, query, and authorization header (if enabled).
+// Host is included in the hash generation to ensure unique keys across different domains.
 // It returns a SHA256 hash that will be used as the cache key.
 func GenerateCacheKey(req *http.Request, host string, cacheAuth bool) (string, error) {
 	// Create cache key structure
@@ -27,7 +27,7 @@ func GenerateCacheKey(req *http.Request, host string, cacheAuth bool) (string, e
 		key.Authorization = req.Header.Get("Authorization")
 	}
 
-	// Generate hash from cache key (host is NOT included in hash)
+	// Generate hash from cache key (host is included in hash for domain isolation)
 	hash, err := hashCacheKey(key)
 	if err != nil {
 		return "", err
@@ -37,12 +37,13 @@ func GenerateCacheKey(req *http.Request, host string, cacheAuth bool) (string, e
 }
 
 // hashCacheKey generates a SHA256 hash from a CacheKey.
-// Host is NOT included in the hash - it's only used for directory isolation.
+// Host is included in the hash to ensure unique keys across different domains.
 func hashCacheKey(key CacheKey) (string, error) {
 	h := sha256.New()
 
-	// Write key components to hash (excluding Host)
+	// Write key components to hash (including Host for domain isolation)
 	io.WriteString(h, key.Method)
+	io.WriteString(h, key.Host)
 	io.WriteString(h, key.Path)
 	io.WriteString(h, key.Query)
 	io.WriteString(h, key.Authorization)
