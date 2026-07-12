@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -289,8 +290,14 @@ func TestFetchWithRedirectFollow_CacheHit(t *testing.T) {
 		c := createTestCache(t)
 		ctx := createTestContext(t, ts.URL, c)
 
+		// Parse the test server URL to get the host
+		parsedURL, err := url.Parse(ts.URL)
+		if err != nil {
+			t.Fatalf("Failed to parse test URL: %v", err)
+		}
+
 		req := httptest.NewRequest("GET", ts.URL, nil)
-		key, err := cache.GenerateCacheKey(req, "", false)
+		key, err := cache.GenerateCacheKey(req, parsedURL.Host, false)
 		if err != nil {
 			t.Fatalf("GenerateCacheKey error = %v", err)
 		}
@@ -300,7 +307,7 @@ func TestFetchWithRedirectFollow_CacheHit(t *testing.T) {
 			Headers:    map[string][]string{"Content-Type": {"text/plain"}},
 			Body:       []byte("cached content"),
 		}
-		if err := c.Put(key, "", "/", cachedResp); err != nil {
+		if err := c.Put(key, parsedURL.Host, "/", cachedResp); err != nil {
 			t.Fatalf("cache.Put error = %v", err)
 		}
 

@@ -45,6 +45,26 @@ var (
 	logLevelFlag  = pflag.StringP("log-level", "l", "", "set log level")
 	logOutputFlag = pflag.StringP("log-output", "o", "", "set log output")
 
+	// DNS proxy flags
+	dnsEnableFlag   = pflag.Bool("dns", false, "force enable DNS proxy server")
+	dnsDisableFlag  = pflag.Bool("no-dns", false, "disable DNS proxy server (overrides config)")
+	dnsAddrFlag     = pflag.String("dns-addr", "", "DNS server listen address (default: \":53\")")
+	dnsUpstreamFlag = pflag.String("dns-upstream", "", "upstream DNS servers, comma-separated (default: \"8.8.8.8:53\")")
+	dnsProxyIPFlag  = pflag.String("dns-proxy-ip", "", "IP returned by DNS for proxied domains (default: \"127.0.0.1\")")
+
+	// VHost reverse proxy flags
+	vhostEnableFlag  = pflag.Bool("vhost", false, "force enable virtual host reverse proxy")
+	vhostDisableFlag = pflag.Bool("no-vhost", false, "disable virtual host reverse proxy (overrides config)")
+	vhostPortFlag    = pflag.Int("vhost-port", 0, "virtual host proxy listen port (default: 80)")
+
+	// TLS/HTTPS flags
+	tlsEnableFlag         = pflag.Bool("tls", false, "force enable HTTPS TLS listener")
+	tlsDisableFlag        = pflag.Bool("no-tls", false, "disable HTTPS TLS listener (overrides config)")
+	tlsPortFlag           = pflag.Int("tls-port", 0, "HTTPS TLS listen port (default: 443)")
+	tlsCertDirFlag        = pflag.String("tls-cert-dir", "", "certificate storage directory (default: ./certs)")
+	tlsVerifyUpstreamFlag = pflag.Bool("tls-verify-upstream", false, "verify upstream TLS certificates (default: skip)")
+	tlsNoRedirectFlag     = pflag.Bool("tls-no-redirect", false, "disable HTTP→HTTPS redirect")
+
 	// Version flag
 	showVersion = pflag.BoolP("version", "v", false, "show version information and exit")
 
@@ -68,6 +88,10 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  scproxy --target https://example.com --proxy http://proxy:8080 --port 8080")
 	fmt.Fprintln(os.Stderr, "\n  # Batch mode (from config file)")
 	fmt.Fprintln(os.Stderr, "  scproxy --proxy http://proxy:8080")
+	fmt.Fprintln(os.Stderr, "\n  # DNS + VHost mode (one-stop proxy)")
+	fmt.Fprintln(os.Stderr, "  scproxy --dns --vhost --dns-proxy-ip 192.168.1.100")
+	fmt.Fprintln(os.Stderr, "\n  # HTTPS mode (auto-generate root CA, trust certs/ca.crt on client)")
+	fmt.Fprintln(os.Stderr, "  scproxy --tls --tls-cert-dir ./certs")
 	fmt.Fprintln(os.Stderr, "\n  # Clear cache")
 	fmt.Fprintln(os.Stderr, "  scproxy --clear-cache --yes")
 }
@@ -127,16 +151,30 @@ func main() {
 
 	// Populate CLIFlags struct
 	flags := &config.CLIFlags{
-		Target:      *targetFlag,
-		Proxy:       *proxyFlag,
-		Port:        *portFlag,
-		Host:        *hostFlag,
-		ConfigPath:  *configFlag,
-		EnableCache: *cacheFlag,
-		LogLevel:    *logLevelFlag,
-		LogOutput:   *logOutputFlag,
-		ClearCache:  *clearCacheFlag,
-		Yes:         *yesFlag,
+		Target:            *targetFlag,
+		Proxy:             *proxyFlag,
+		Port:              *portFlag,
+		Host:              *hostFlag,
+		ConfigPath:        *configFlag,
+		EnableCache:       *cacheFlag,
+		LogLevel:          *logLevelFlag,
+		LogOutput:         *logOutputFlag,
+		ClearCache:        *clearCacheFlag,
+		Yes:               *yesFlag,
+		DNSEnable:         *dnsEnableFlag,
+		DNSDisable:        *dnsDisableFlag,
+		DNSAddr:           *dnsAddrFlag,
+		DNSUpstream:       *dnsUpstreamFlag,
+		DNSProxyIP:        *dnsProxyIPFlag,
+		VHostEnable:       *vhostEnableFlag,
+		VHostDisable:      *vhostDisableFlag,
+		VHostPort:         *vhostPortFlag,
+		TLSEnable:         *tlsEnableFlag,
+		TLSDisable:        *tlsDisableFlag,
+		TLSPort:           *tlsPortFlag,
+		TLSCertDir:        *tlsCertDirFlag,
+		TLSVerifyUpstream: *tlsVerifyUpstreamFlag,
+		TLSNoRedirectHTTP: *tlsNoRedirectFlag,
 	}
 
 	// Handle --clear-cache (early exit)

@@ -12,9 +12,9 @@ import (
 	"github.com/peng-mj/scproxy/internal/config"
 )
 
-// TestGenerateCacheKey_HostNotInHash verifies that different hosts generate the same hash
-// for the same request path/query/method.
-func TestGenerateCacheKey_HostNotInHash(t *testing.T) {
+// TestGenerateCacheKey_HostInHash verifies that different hosts generate different hashes
+// for the same request path/query/method (host is included in hash for domain isolation).
+func TestGenerateCacheKey_HostInHash(t *testing.T) {
 	tests := []struct {
 		name      string
 		method    string
@@ -66,24 +66,24 @@ func TestGenerateCacheKey_HostNotInHash(t *testing.T) {
 				"localhost:8080",
 			}
 
-			// Generate hash with first host
-			req1 := newRequest(t, tt.method, "https://"+hosts[0]+tt.path, tt.query, tt.auth)
-			hash1, err := GenerateCacheKey(req1, hosts[0], tt.cacheAuth)
-			if err != nil {
-				t.Fatalf("GenerateCacheKey failed: %v", err)
-			}
-
-			// All other hosts should produce the same hash
-			for _, host := range hosts[1:] {
+			hashes := make(map[string]string)
+			// Generate hash for each host
+			for _, host := range hosts {
 				req := newRequest(t, tt.method, "https://"+host+tt.path, tt.query, tt.auth)
 				hash, err := GenerateCacheKey(req, host, tt.cacheAuth)
 				if err != nil {
 					t.Fatalf("GenerateCacheKey failed for host %s: %v", host, err)
 				}
+				hashes[host] = hash
+			}
 
-				if hash != hash1 {
-					t.Errorf("GenerateCacheKey(host=%s) = %s, want %s (same as host=%s)",
-						host, hash, hash1, hosts[0])
+			// All hosts should produce different hashes
+			for i, h1 := range hosts {
+				for _, h2 := range hosts[i+1:] {
+					if hashes[h1] == hashes[h2] {
+						t.Errorf("Hosts %s and %s should generate different hashes, both got %s",
+							h1, h2, hashes[h1])
+					}
 				}
 			}
 		})
