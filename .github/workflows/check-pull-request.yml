@@ -2,7 +2,7 @@ name: Check Pull Request
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   check-pr:
@@ -11,13 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
-
-      - name: Install dependencies
-        run: go get .
+          cache: true
 
       - name: Build
         run: go build -v
@@ -25,7 +22,7 @@ jobs:
       - name: Test
         run: go test ./...
 
-      - name: Linter
+      - name: Lint
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.1.6
