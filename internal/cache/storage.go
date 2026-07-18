@@ -2,9 +2,9 @@ package cache
 
 import (
 	"fmt"
-	"log"
 	"hash/crc32"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -175,7 +175,9 @@ func (s *Storage) Put(hash string, host string, urlPath string, response *Cached
 	// Add entry to index
 	if err := s.index.Add(hash, host, urlPath, filePath, response.StatusCode, headers, int64(len(response.Body)), crc32Value); err != nil {
 		// Clean up data file if index update fails
-		os.Remove(dataPath)
+		if rmErr := os.Remove(dataPath); rmErr != nil && !os.IsNotExist(rmErr) {
+			slog.Warn("failed to remove data file after index update failure", "path", dataPath, "error", rmErr)
+		}
 		return fmt.Errorf("failed to update index: %v", err)
 	}
 

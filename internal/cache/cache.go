@@ -100,7 +100,7 @@ func WriteResponse(resp *http.Response) (*CachedResponse, error) {
 	// Properly close response body and log error
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			slog.Warn(""warning: failed to close response body: %v", closeErr)
+			slog.Warn("failed to close response body", "error", closeErr)
 		}
 	}()
 
@@ -134,7 +134,7 @@ func ResponseToHTTP(cached *CachedResponse, w http.ResponseWriter) {
 
 	// Write body - log error but don't fail (connection may be closed)
 	if _, writeErr := w.Write(cached.Body); writeErr != nil {
-		slog.Warn(""warning: failed to write cached response body: %v", writeErr)
+		slog.Warn("failed to write cached response body", "error", writeErr)
 	}
 }
 

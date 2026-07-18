@@ -116,6 +116,12 @@ func (l *Logger) Fatal(msg string, args ...any) {
 	}
 }
 
+// SetDefault sets this logger as the default slog logger for the package.
+// This allows other packages that use slog directly to benefit from the same configuration.
+func (l *Logger) SetDefault() {
+	slog.SetDefault(l.slogger)
+}
+
 // parseOutput determines the io.Writer for logging based on the configuration.
 // Note: If a file is opened, the caller is responsible for closing it.
 func parseOutput(cfg *config.LoggingConfig) (io.WriteCloser, error) {

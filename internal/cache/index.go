@@ -62,7 +62,7 @@ func NewCacheIndex(cacheDir string) (*CacheIndex, error) {
 	}); err != nil {
 		// Best effort cleanup - log error but don't override original error
 		if closeErr := db.Close(); closeErr != nil {
-			slog.Warn(""warning: failed to close database during cleanup: %v", closeErr)
+			slog.Warn("failed to close database during cleanup", "error", closeErr)
 		}
 		return nil, fmt.Errorf("failed to create bucket: %v", err)
 	}
@@ -136,7 +136,7 @@ func (idx *CacheIndex) Get(hash string) (*IndexEntry, bool) {
 		if decErr != nil {
 			// Delete corrupted entry - log error
 			if delErr := bucket.Delete([]byte(hash)); delErr != nil {
-				slog.Warn(""warning: failed to delete corrupted entry %s: %v", hash, delErr)
+				slog.Warn("failed to delete corrupted entry %s", "error", hash, delErr)
 			}
 			return nil
 		}
@@ -147,20 +147,20 @@ func (idx *CacheIndex) Get(hash string) (*IndexEntry, bool) {
 		encoded, encErr := encodeEntry(decoded)
 		if encErr != nil {
 			entry = decoded
-			slog.Warn(""warning: failed to encode entry %s for access time update: %v", hash, encErr)
+			slog.Warn("failed to encode entry %s for access time update", "error", hash, encErr)
 			return nil
 		}
 
 		if putErr := bucket.Put([]byte(hash), encoded); putErr != nil {
 			entry = decoded
-			slog.Warn(""warning: failed to update access time for entry %s: %v", hash, putErr)
+			slog.Warn("failed to update access time for entry %s", "error", hash, putErr)
 			return nil
 		}
 
 		entry = decoded
 		return nil
 	}); updateErr != nil {
-		slog.Warn(""warning: failed to update access time for entry %s: %v", hash, updateErr)
+		slog.Warn("failed to update access time for entry %s", "error", hash, updateErr)
 	}
 
 	return entry, found
@@ -242,7 +242,7 @@ func (idx *CacheIndex) GetAll() map[string]*IndexEntry {
 		}
 		return nil
 	}); viewErr != nil {
-		slog.Warn(""warning: failed to read all cache entries: %v", viewErr)
+		slog.Warn("failed to read all cache entries", "error", viewErr)
 	}
 
 	return result
