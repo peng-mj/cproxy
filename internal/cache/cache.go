@@ -2,6 +2,7 @@ package cache
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"sync/atomic"
 
@@ -96,7 +97,12 @@ func WriteResponse(resp *http.Response) (*CachedResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	// Properly close response body and log error
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			slog.Warn(""warning: failed to close response body: %v", closeErr)
+		}
+	}()
 
 	// Copy headers
 	headers := make(map[string][]string)
@@ -126,8 +132,10 @@ func ResponseToHTTP(cached *CachedResponse, w http.ResponseWriter) {
 	// Write status code
 	w.WriteHeader(cached.StatusCode)
 
-	// Write body
-	w.Write(cached.Body)
+	// Write body - log error but don't fail (connection may be closed)
+	if _, writeErr := w.Write(cached.Body); writeErr != nil {
+		slog.Warn(""warning: failed to write cached response body: %v", writeErr)
+	}
 }
 
 // StreamResponse streams an HTTP response to both the client and cache.

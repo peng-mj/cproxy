@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,7 +176,10 @@ func (cc *ChunkedCache) PutChunk(hash string, chunkIndex int, data []byte) (stri
 
 	// Save metadata
 	if err := cc.saveMetadata(hash, meta); err != nil {
-		os.Remove(chunkPath)
+		// Best effort cleanup - log error
+		if rmErr := os.Remove(chunkPath); rmErr != nil {
+			slog.Warn(""warning: failed to remove chunk file after metadata save failure: %v", rmErr)
+		}
 		return "", fmt.Errorf("failed to save metadata: %v", err)
 	}
 
@@ -326,7 +330,9 @@ func (cc *ChunkedCache) Cleanup() error {
 		// Remove chunk files
 		for i := 0; i < meta.ChunkCount; i++ {
 			chunkPath := cc.getChunkPath(hash, i)
-			os.Remove(chunkPath)
+			if rmErr := os.Remove(chunkPath); rmErr != nil && !os.IsNotExist(rmErr) {
+			slog.Warn(""warning: failed to remove chunk file %s: %v", chunkPath, rmErr)
+		}
 		}
 		// Remove metadata
 		metaPath := cc.getChunkMetadataPath(hash)

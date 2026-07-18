@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -59,7 +60,10 @@ func NewCacheIndex(cacheDir string) (*CacheIndex, error) {
 		_, err := tx.CreateBucketIfNotExists([]byte(entriesBucket))
 		return err
 	}); err != nil {
-		db.Close()
+		// Best effort cleanup - log error but don't override original error
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn(""warning: failed to close database during cleanup: %v", closeErr)
+		}
 		return nil, fmt.Errorf("failed to create bucket: %v", err)
 	}
 
@@ -120,7 +124,8 @@ func (idx *CacheIndex) Get(hash string) (*IndexEntry, bool) {
 	var entry *IndexEntry
 	var found bool
 
-	idx.db.Update(func(tx *bolt.Tx) error {
+	// Try to update access time - log errors but don't fail the Get operation
+	if updateErr := idx.db.Update(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(entriesBucket))
 		data := bucket.Get([]byte(hash))
 		if data == nil {
@@ -129,7 +134,10 @@ func (idx *CacheIndex) Get(hash string) (*IndexEntry, bool) {
 
 		decoded, decErr := decodeEntry(data)
 		if decErr != nil {
-			bucket.Delete([]byte(hash))
+			// Delete corrupted entry - log error
+			if delErr := bucket.Delete([]byte(hash)); delErr != nil {
+				slog.Warn(""warning: failed to delete corrupted entry %s: %v", hash, delErr)
+			}
 			return nil
 		}
 
@@ -139,17 +147,21 @@ func (idx *CacheIndex) Get(hash string) (*IndexEntry, bool) {
 		encoded, encErr := encodeEntry(decoded)
 		if encErr != nil {
 			entry = decoded
+			slog.Warn(""warning: failed to encode entry %s for access time update: %v", hash, encErr)
 			return nil
 		}
 
 		if putErr := bucket.Put([]byte(hash), encoded); putErr != nil {
 			entry = decoded
+			slog.Warn(""warning: failed to update access time for entry %s: %v", hash, putErr)
 			return nil
 		}
 
 		entry = decoded
 		return nil
-	})
+	}); updateErr != nil {
+		slog.Warn(""warning: failed to update access time for entry %s: %v", hash, updateErr)
+	}
 
 	return entry, found
 }
@@ -216,7 +228,8 @@ func (idx *CacheIndex) Cleanup(invalidHashes []string) error {
 func (idx *CacheIndex) GetAll() map[string]*IndexEntry {
 	result := make(map[string]*IndexEntry)
 
-	idx.db.View(func(tx *bolt.Tx) error {
+	// Read all entries - log error but return what we have
+	if viewErr := idx.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(entriesBucket))
 		c := bucket.Cursor()
 
@@ -228,7 +241,9 @@ func (idx *CacheIndex) GetAll() map[string]*IndexEntry {
 			result[string(k)] = entry
 		}
 		return nil
-	})
+	}); viewErr != nil {
+		slog.Warn(""warning: failed to read all cache entries: %v", viewErr)
+	}
 
 	return result
 }

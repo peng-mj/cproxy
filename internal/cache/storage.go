@@ -2,6 +2,7 @@ package cache
 
 import (
 	"fmt"
+	"log"
 	"hash/crc32"
 	"io"
 	"os"
