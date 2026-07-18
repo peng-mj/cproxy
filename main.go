@@ -207,6 +207,9 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 
+	// Set as default slog handler for packages using slog directly
+	logger.SetDefault()
+
 	logger.Debug("Configuration loaded successfully", "config", cfg)
 
 	// Start scproxy in batch mode (always use scproxyManager now)
