@@ -23,7 +23,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/peng-mj/scproxy/internal/validation"
 )
@@ -125,15 +124,8 @@ func New(flags *CLIFlags) (*Config, error) {
 		hostConfig = host
 	}
 
-	// DNS config: apply defaults for missing section, then CLI overrides
+	// DNS config: apply defaults for missing fields
 	dnsConfig := appConfig.DNS
-	if !dnsConfig.Enabled && dnsConfig.Addr == "" && len(dnsConfig.Upstream) == 0 && dnsConfig.ProxyIP == "" {
-		// DNS section was not present in JSON config, enable by default
-		dnsConfig.Enabled = true
-		dnsConfig.Addr = ":53"
-		dnsConfig.Upstream = []string{"8.8.8.8:53"}
-		dnsConfig.ProxyIP = "127.0.0.1"
-	}
 	if dnsConfig.Addr == "" {
 		dnsConfig.Addr = ":53"
 	}
@@ -143,75 +135,27 @@ func New(flags *CLIFlags) (*Config, error) {
 	if dnsConfig.ProxyIP == "" {
 		dnsConfig.ProxyIP = "127.0.0.1"
 	}
-	if flags.DNSDisable {
-		dnsConfig.Enabled = false
-	}
-	if flags.DNSEnable {
-		dnsConfig.Enabled = true
-	}
-	if flags.DNSAddr != "" {
-		dnsConfig.Addr = flags.DNSAddr
-	}
-	if flags.DNSUpstream != "" {
-		dnsConfig.Upstream = splitUpstream(flags.DNSUpstream)
-	}
-	if flags.DNSProxyIP != "" {
-		dnsConfig.ProxyIP = flags.DNSProxyIP
-	}
 
-	// VHost config: apply defaults for missing section, then CLI overrides
+	// VHost config: apply defaults for missing fields
 	vhostConfig := appConfig.VHost
-	if !vhostConfig.Enabled && vhostConfig.Port == 0 {
-		// VHost section was not present in JSON config, enable by default
-		vhostConfig.Enabled = true
-		vhostConfig.Port = 80
-	}
 	if vhostConfig.Port == 0 {
 		vhostConfig.Port = 80
 	}
-	if flags.VHostDisable {
-		vhostConfig.Enabled = false
-	}
-	if flags.VHostEnable {
-		vhostConfig.Enabled = true
-	}
-	if flags.VHostPort > 0 {
-		vhostConfig.Port = flags.VHostPort
-	}
 
-	// TLS config: apply defaults for missing section, then CLI overrides
+	// TLS config: apply defaults for missing fields
 	tlsConfig := appConfig.TLS
-	if !tlsConfig.Enabled && tlsConfig.Port == 0 && tlsConfig.CertDir == "" {
-		// TLS section was not present in JSON config, enable by default
-		tlsConfig.Enabled = true
-		tlsConfig.Port = 443
-		tlsConfig.CertDir = "./certs"
-		tlsConfig.SkipUpstreamVerify = true
-		tlsConfig.RedirectHTTP = true
-	}
 	if tlsConfig.Port == 0 {
 		tlsConfig.Port = 443
 	}
 	if tlsConfig.CertDir == "" {
 		tlsConfig.CertDir = "./certs"
 	}
-	if flags.TLSDisable {
-		tlsConfig.Enabled = false
-	}
-	if flags.TLSEnable {
+
+	// Gateway mode: enable DNS(:53) + VHost(:80) + TLS(:443) together
+	if flags.Gateway {
+		dnsConfig.Enabled = true
+		vhostConfig.Enabled = true
 		tlsConfig.Enabled = true
-	}
-	if flags.TLSPort > 0 {
-		tlsConfig.Port = flags.TLSPort
-	}
-	if flags.TLSCertDir != "" {
-		tlsConfig.CertDir = flags.TLSCertDir
-	}
-	if flags.TLSVerifyUpstream {
-		tlsConfig.SkipUpstreamVerify = false
-	}
-	if flags.TLSNoRedirectHTTP {
-		tlsConfig.RedirectHTTP = false
 	}
 
 	cfg := &Config{
@@ -231,19 +175,6 @@ func New(flags *CLIFlags) (*Config, error) {
 	}
 
 	return cfg, nil
-}
-
-// splitUpstream splits a comma-separated list of DNS upstream servers.
-func splitUpstream(s string) []string {
-	parts := strings.Split(s, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
-		}
-	}
-	return result
 }
 
 // validateConfig checks the validity of the configuration.

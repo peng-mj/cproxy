@@ -2,6 +2,7 @@
 bin/
 dist/
 tmp/
+/scproxy
 *.exe
 *.exe~
 *.dll
@@ -47,3 +48,10 @@ coverage.html
 
 __pycache__
 *.json
+
+# Generated certificates and private keys
+certs/
+
+# Cache runtime data
+cache_index.db
+cache/data/

@@ -15,23 +15,6 @@ type CLIFlags struct {
 	ClearCache  bool
 	Yes         bool
 
-	// DNS proxy flags
-	DNSEnable   bool
-	DNSDisable  bool
-	DNSAddr     string
-	DNSUpstream string
-	DNSProxyIP  string
-
-	// VHost reverse proxy flags
-	VHostEnable  bool
-	VHostDisable bool
-	VHostPort    int
-
-	// TLS/HTTPS flags
-	TLSEnable         bool
-	TLSDisable        bool
-	TLSPort           int
-	TLSCertDir        string
-	TLSVerifyUpstream bool
-	TLSNoRedirectHTTP bool
+	// Gateway mode: enables DNS(:53) + HTTP(:80) + HTTPS(:443) together
+	Gateway bool
 }

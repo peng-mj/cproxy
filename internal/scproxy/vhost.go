@@ -30,7 +30,6 @@ type VHostServer struct {
 	server         *http.Server            // HTTP server (:80)
 	tlsServer      *http.Server            // HTTPS server (:443)
 	certMgr        *cert.Manager
-	redirectHTTP   bool // Redirect HTTP :80 to HTTPS
 	mu             sync.RWMutex
 }
 
@@ -46,7 +45,6 @@ func NewVHostServer(cfg *config.Config, port int, logger *logging.Logger, statsC
 		handlers:       make(map[string]http.Handler),
 		hostnames:      make(map[string]string),
 		certMgr:        certMgr,
-		redirectHTTP:   cfg.TLS.Enabled && cfg.TLS.RedirectHTTP,
 	}
 
 	for _, route := range cfg.Routes {
@@ -89,21 +87,12 @@ func (s *VHostServer) Start() error {
 		return fmt.Errorf("failed to bind VHost %s: %w", addr, err)
 	}
 
-	// If TLS is enabled with redirect, HTTP handler returns 301 to HTTPS
-	var handler http.Handler = s
-	if s.redirectHTTP {
-		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			target := "https://" + stripPort(r.Host) + r.URL.RequestURI()
-			http.Redirect(w, r, target, http.StatusMovedPermanently)
-		})
-	}
-
 	s.server = &http.Server{
-		Handler: handler,
+		Handler: s,
 	}
 
 	go func() {
-		s.logger.Info("VHost HTTP server starting", "addr", addr, "routes", len(s.handlers), "redirect", s.redirectHTTP)
+		s.logger.Info("VHost HTTP server starting", "addr", addr, "routes", len(s.handlers))
 		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			s.logger.Error("VHost HTTP server error", "error", err)
 		}
@@ -203,12 +192,4 @@ func (s *VHostServer) Hostnames() []string {
 		names = append(names, h)
 	}
 	return names
-}
-
-// stripPort removes the :port suffix from a host string.
-func stripPort(host string) string {
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		return h
-	}
-	return host
 }

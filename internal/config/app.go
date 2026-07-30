@@ -49,7 +49,6 @@ type TLSConfig struct {
 	Port               int    `json:"port"`               // TLS listen port (default 443)
 	CertDir            string `json:"certDir"`            // Certificate storage directory (default "./certs")
 	SkipUpstreamVerify bool   `json:"skipUpstreamVerify"` // Skip TLS verification for upstream targets (default true)
-	RedirectHTTP       bool   `json:"redirectHTTP"`       // Redirect HTTP :80 to HTTPS (default true)
 }
 
 // CacheConfig represents cache-specific configuration.
@@ -84,21 +83,20 @@ func defaultAppConfig() *AppConfig {
 			Output: LogOutputStdout,
 		},
 		DNS: DNSConfig{
-			Enabled:  true,
+			Enabled:  false,
 			Addr:     ":53",
 			Upstream: []string{"8.8.8.8:53"},
 			ProxyIP:  "127.0.0.1",
 		},
 		VHost: VHostConfig{
-			Enabled: true,
+			Enabled: false,
 			Port:    80,
 		},
 		TLS: TLSConfig{
-			Enabled:            true,
+			Enabled:            false,
 			Port:               443,
 			CertDir:            "./certs",
 			SkipUpstreamVerify: true,
-			RedirectHTTP:       true,
 		},
 		Routes: []validation.RouteConfig{},
 	}
