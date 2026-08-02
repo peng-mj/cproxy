@@ -10,13 +10,17 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/peng-mj/scproxy/internal/cache"
 	"github.com/peng-mj/scproxy/internal/config"
+	"github.com/peng-mj/scproxy/internal/install"
 	"github.com/peng-mj/scproxy/internal/logging"
 	"github.com/peng-mj/scproxy/internal/scproxy"
 	"github.com/peng-mj/scproxy/internal/stats"
@@ -48,6 +52,11 @@ var (
 	// Gateway mode flag: enables DNS(:53) + HTTP(:80) + HTTPS(:443) together
 	gatewayFlag = pflag.Bool("gateway", false, "enable gateway mode: DNS + HTTP(:80) + HTTPS(:443), serving both in parallel")
 
+	// Install/uninstall local DNS wiring (Linux): point system resolver at
+	// scproxy and trust its CA so gateway mode works on a single host.
+	installFlag   = pflag.Bool("install", false, "wire local DNS to scproxy (free :53, set resolver to proxyIP, trust CA) and exit")
+	uninstallFlag = pflag.Bool("uninstall", false, "undo --install (restore previous resolver) and exit")
+
 	// Version flag
 	showVersion = pflag.BoolP("version", "v", false, "show version information and exit")
 
@@ -73,6 +82,8 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  scproxy --proxy http://proxy:8080")
 	fmt.Fprintln(os.Stderr, "\n  # Gateway mode (DNS:53 + HTTP:80 + HTTPS:443, both serve in parallel)")
 	fmt.Fprintln(os.Stderr, "  scproxy --target https://example.com --gateway")
+	fmt.Fprintln(os.Stderr, "\n  # Single-host gateway: install local DNS + CA first, then run")
+	fmt.Fprintln(os.Stderr, "  sudo scproxy --install && sudo scproxy --target https://example.com --gateway")
 	fmt.Fprintln(os.Stderr, "\n  # Clear cache")
 	fmt.Fprintln(os.Stderr, "  scproxy --clear-cache --yes")
 }
@@ -130,6 +141,22 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Handle --install/--uninstall (early exit)
+	if *installFlag {
+		if err := install.Install(*configFlag); err != nil {
+			fmt.Fprintf(os.Stderr, "install failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if *uninstallFlag {
+		if err := install.Uninstall(*configFlag); err != nil {
+			fmt.Fprintf(os.Stderr, "uninstall failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	// Populate CLIFlags struct
 	flags := &config.CLIFlags{
 		Target:      *targetFlag,
@@ -159,6 +186,11 @@ func main() {
 		log.Fatalf("Failed to initialize configuration: %v", err)
 	}
 
+	// Check root privileges for privileged ports (DNS :53, VHost :80, TLS :443)
+	if err := checkPrivileges(cfg); err != nil {
+		log.Fatalf("%v", err)
+	}
+
 	// Save CLI parameters to config file
 	configPath := flags.ConfigPath
 	if configPath == "" {
@@ -179,6 +211,14 @@ func main() {
 	logger.SetDefault()
 
 	logger.Debug("Configuration loaded successfully", "config", cfg)
+
+	// Gateway mode: ensure proxyIP is reachable; if not, add it to lo.
+	if cfg.DNS.Enabled && cfg.DNS.ProxyIP != "" {
+		if err := install.EnsureLoopback(cfg.DNS.ProxyIP); err != nil {
+			logger.Warn("Failed to ensure loopback alias — scproxy may be unreachable at proxyIP",
+				"proxyIP", cfg.DNS.ProxyIP, "err", err)
+		}
+	}
 
 	// Start scproxy in batch mode (always use scproxyManager now)
 	logger.Info("Starting scproxy...", "routes", len(cfg.Routes))
@@ -271,4 +311,61 @@ func clearCache(flags *config.CLIFlags) error {
 
 	fmt.Println("Cache cleared successfully.")
 	return nil
+}
+
+// checkPrivileges verifies that the current process has sufficient privileges
+// to bind any privileged ports (< 1024) required by the configuration.
+// On Unix, binding ports below 1024 requires root or CAP_NET_BIND_SERVICE.
+// If a privileged port is needed but the process is not root, it returns an
+// error instructing the user to re-run with sudo.
+func checkPrivileges(cfg *config.Config) error {
+	type listener struct {
+		name string
+		port int
+	}
+	var privileged []listener
+
+	if cfg.DNS.Enabled {
+		if port := portFromAddr(cfg.DNS.Addr); port > 0 && port < 1024 {
+			privileged = append(privileged, listener{"DNS", port})
+		}
+	}
+	if cfg.VHost.Enabled && cfg.VHost.Port > 0 && cfg.VHost.Port < 1024 {
+		privileged = append(privileged, listener{"VHost HTTP", cfg.VHost.Port})
+	}
+	if cfg.TLS.Enabled && cfg.TLS.Port > 0 && cfg.TLS.Port < 1024 {
+		privileged = append(privileged, listener{"VHost HTTPS", cfg.TLS.Port})
+	}
+
+	if len(privileged) == 0 {
+		return nil
+	}
+
+	if os.Getuid() != 0 {
+		var parts []string
+		for _, l := range privileged {
+			parts = append(parts, fmt.Sprintf("%s(:%d)", l.name, l.port))
+		}
+		return fmt.Errorf(
+			"the following listeners require root privileges: %s\n"+
+				"re-run with: sudo %s",
+			strings.Join(parts, ", "),
+			strings.Join(os.Args, " "),
+		)
+	}
+	return nil
+}
+
+// portFromAddr extracts the numeric port from a listen address like ":53" or
+// "0.0.0.0:53". Returns 0 if the port cannot be parsed.
+func portFromAddr(addr string) int {
+	_, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return 0
+	}
+	return port
 }

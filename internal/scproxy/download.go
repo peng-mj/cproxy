@@ -15,6 +15,7 @@ func (ctx *RequestContext) fetchWithRedirectFollow(targetURL string, proxyURL st
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
+			Resolver:  upstreamResolver(ctx.cfg),
 		}).DialContext,
 		MaxIdleConns:          10,
 		IdleConnTimeout:       90 * time.Second,

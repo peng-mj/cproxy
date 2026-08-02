@@ -34,7 +34,7 @@ type DNSConfig struct {
 	Enabled  bool     `json:"enabled"`  // Enable DNS server
 	Addr     string   `json:"addr"`     // Listen address (e.g. ":53")
 	Upstream []string `json:"upstream"` // Upstream DNS servers (e.g. ["8.8.8.8:53"])
-	ProxyIP  string   `json:"proxyIP"`  // IP to return for proxied domains (default "127.0.0.1")
+	ProxyIP  string  `json:"proxyIP"`  // IP to return for proxied domains (default "10.255.255.254")
 }
 
 // VHostConfig holds virtual host reverse proxy configuration.
@@ -86,7 +86,7 @@ func defaultAppConfig() *AppConfig {
 			Enabled:  false,
 			Addr:     ":53",
 			Upstream: []string{"8.8.8.8:53"},
-			ProxyIP:  "127.0.0.1",
+			ProxyIP:  "10.255.255.254",
 		},
 		VHost: VHostConfig{
 			Enabled: false,

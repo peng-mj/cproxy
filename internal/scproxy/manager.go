@@ -134,19 +134,18 @@ func (pm *scproxyManager) Start() error {
 
 	if pm.vhostServer != nil {
 		if err := pm.vhostServer.Start(); err != nil {
-			pm.logger.Warn("VHost HTTP server failed to start, continuing without it", "error", err)
-			pm.vhostServer = nil
-		} else if pm.certMgr != nil && pm.cfg.TLS.Enabled {
+			return fmt.Errorf("VHost HTTP server failed to start: %w", err)
+		}
+		if pm.certMgr != nil && pm.cfg.TLS.Enabled {
 			if err := pm.vhostServer.StartTLS(pm.cfg.TLS.Port); err != nil {
-				pm.logger.Warn("VHost HTTPS server failed to start, continuing without it", "error", err)
+				return fmt.Errorf("VHost HTTPS server failed to start: %w", err)
 			}
 		}
 	}
 
 	if pm.dnsServer != nil {
 		if err := pm.dnsServer.Start(); err != nil {
-			pm.logger.Warn("DNS server failed to start, continuing without it", "error", err)
-			pm.dnsServer = nil
+			return fmt.Errorf("DNS server failed to start: %w", err)
 		}
 	}
 

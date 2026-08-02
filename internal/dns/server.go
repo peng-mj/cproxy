@@ -29,7 +29,7 @@ func DefaultConfig() Config {
 		Enabled:  false,
 		Addr:     ":53",
 		Upstream: []string{"8.8.8.8:53"},
-		ProxyIP:  "127.0.0.1",
+		ProxyIP:  "10.255.255.254",
 	}
 }
 
@@ -57,7 +57,7 @@ func New(cfg Config, domains []string, logger *logging.Logger) (*Server, error) 
 		cfg.Upstream = []string{"8.8.8.8:53"}
 	}
 	if cfg.ProxyIP == "" {
-		cfg.ProxyIP = "127.0.0.1"
+		cfg.ProxyIP = "10.255.255.254"
 	}
 
 	proxyIP := net.ParseIP(cfg.ProxyIP)

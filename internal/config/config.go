@@ -133,7 +133,7 @@ func New(flags *CLIFlags) (*Config, error) {
 		dnsConfig.Upstream = []string{"8.8.8.8:53"}
 	}
 	if dnsConfig.ProxyIP == "" {
-		dnsConfig.ProxyIP = "127.0.0.1"
+		dnsConfig.ProxyIP = "10.255.255.254"
 	}
 
 	// VHost config: apply defaults for missing fields
