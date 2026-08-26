@@ -1,16 +1,17 @@
 # This Dockerfile is only used as an example to build the application locally with Docker.
 # Production images are built with https://ko.build/
 
-FROM golang:1.24 AS build
+FROM golang:1.24-alpine AS build
 
 ARG APP_VERSION=unknown
 ARG COMMIT_HASH=unknown
+ARG GOPROXY=https://goproxy.cn,direct
 
 WORKDIR /app
 
 # Install dependencies
 COPY go.mod go.sum ./
-RUN go mod download
+RUN GOPROXY=${GOPROXY} go mod download
 
 # Build application
 COPY . ./

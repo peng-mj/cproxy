@@ -1,23 +1,3 @@
-// Package config manages application configuration using the Koanf library.
-//
-// This package provides structures and functions for handling application
-// configuration settings. It uses the Koanf library to facilitate loading
-// configuration from various sources.
-//
-// The main structures include:
-//
-//   - Config: Represents the overall configuration object, containing nested
-//     configurations for Host, Port, Proxy URL and Target URL, Cache settings,
-//     and Logging settings.
-//
-//   - LoggingConfig: Holds logging configuration settings, including the log level,
-//     format, output destination, and path for log files. It includes validation
-//     to ensure the logging settings are correct and conform to allowed values.
-//
-// The package also provides a New function to create a new configuration
-// instance, initializing it with default values, loading settings from environment
-// variables and processing command line flags. It ensures that settings are
-// validated before they are used, enhancing the reliability of the application.
 package config
 
 import (
@@ -28,50 +8,64 @@ import (
 	"github.com/peng-mj/scproxy/internal/validation"
 )
 
-// Config represents a configuration object. This type is
-// designed to hold server and other configurations.
+const (
+	AppName            = "scproxy"
+	LocalConfig        = "./cache/config.json"
+	EtcConfig          = "/etc/scproxy/config.json"
+	DNSDefaultAddr     = ":53"
+	DNSDefaultUpstream = "8.8.8.8:53"
+	DNSDefaultProxyIP  = "127.0.0.1"
+	VHostDefaultPort   = 80
+	TLSDefaultPort     = 443
+	TLSCertDirDefault  = "./certs"
+)
+
 type Config struct {
-	Proxy   string                   // Outbound Proxy URL (from CLI or JSON config)
-	Host    string                   // Server listening host (from JSON config)
-	Cache   CacheConfig              // Cache configuration (from JSON config)
-	Logging LoggingConfig            // Logging configuration (from JSON config)
-	DNS     DNSConfig                // DNS proxy configuration (from JSON config)
-	VHost   VHostConfig              // Virtual host configuration (from JSON config)
-	TLS     TLSConfig                // TLS/HTTPS configuration (from JSON config)
-	Routes  []validation.RouteConfig // Routes configuration (from JSON config)
+	Proxy   string
+	Host    string
+	Cache   CacheConfig
+	Logging LoggingConfig
+	DNS     DNSConfig
+	VHost   VHostConfig
+	TLS     TLSConfig
+	Routes  []validation.RouteConfig
 }
 
-// AppName is the name of the application.
-const AppName = "scproxy"
-
-// New loads the application configuration from various sources:
-//   - JSON configuration file (created with defaults if missing)
-//   - Command line flags (target, proxy, port)
-func New(flags *CLIFlags) (*Config, error) {
-	// 1. Get configuration file path
+func New(flags *CLIFlags) (*Config, string, error) {
 	configPath := flags.ConfigPath
+
 	if configPath == "" {
-		configPath = "./cache/scproxy.json"
+		if _, err := os.Stat(LocalConfig); err == nil {
+			configPath = LocalConfig
+			fmt.Printf("Using existing configuration at %s\n", configPath)
+		} else if _, err := os.Stat(EtcConfig); err == nil {
+			configPath = EtcConfig
+			fmt.Printf("Using existing configuration at %s\n", configPath)
+		} else {
+			configPath = EtcConfig
+		}
 	}
 
-	// 2. Load JSON configuration
 	var appConfig *AppConfig
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		// Config file doesn't exist, create default config
 		fmt.Printf("Creating default configuration at %s\n", configPath)
 		if err := InitDefaultAppConfig(configPath); err != nil {
-			return nil, fmt.Errorf("failed to create default config: %v", err)
+			fmt.Printf("Failed to create config at %s (error: %v), falling back to %s\n", configPath, err, LocalConfig)
+			configPath = LocalConfig
+			fmt.Printf("Creating default configuration at %s\n", configPath)
+			if err := InitDefaultAppConfig(configPath); err != nil {
+				return nil, "", fmt.Errorf("failed to create default config: %v", err)
+			}
 		}
 		appConfig, err = LoadAppConfig(configPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load default config: %v", err)
+			return nil, "", fmt.Errorf("failed to load default config: %v", err)
 		}
 	} else {
-		// Config file exists, load it
 		var err error
 		appConfig, err = LoadAppConfig(configPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load config: %v", err)
+			return nil, "", fmt.Errorf("failed to load config: %v", err)
 		}
 	}
 
@@ -125,23 +119,21 @@ func New(flags *CLIFlags) (*Config, error) {
 		hostConfig = host
 	}
 
-	// DNS config: apply defaults for missing section, then CLI overrides
 	dnsConfig := appConfig.DNS
 	if !dnsConfig.Enabled && dnsConfig.Addr == "" && len(dnsConfig.Upstream) == 0 && dnsConfig.ProxyIP == "" {
-		// DNS section was not present in JSON config, enable by default
 		dnsConfig.Enabled = true
-		dnsConfig.Addr = ":53"
-		dnsConfig.Upstream = []string{"8.8.8.8:53"}
-		dnsConfig.ProxyIP = "127.0.0.1"
+		dnsConfig.Addr = DNSDefaultAddr
+		dnsConfig.Upstream = []string{DNSDefaultUpstream}
+		dnsConfig.ProxyIP = DNSDefaultProxyIP
 	}
 	if dnsConfig.Addr == "" {
-		dnsConfig.Addr = ":53"
+		dnsConfig.Addr = DNSDefaultAddr
 	}
 	if len(dnsConfig.Upstream) == 0 {
-		dnsConfig.Upstream = []string{"8.8.8.8:53"}
+		dnsConfig.Upstream = []string{DNSDefaultUpstream}
 	}
 	if dnsConfig.ProxyIP == "" {
-		dnsConfig.ProxyIP = "127.0.0.1"
+		dnsConfig.ProxyIP = DNSDefaultProxyIP
 	}
 	if flags.DNSDisable {
 		dnsConfig.Enabled = false
@@ -159,15 +151,13 @@ func New(flags *CLIFlags) (*Config, error) {
 		dnsConfig.ProxyIP = flags.DNSProxyIP
 	}
 
-	// VHost config: apply defaults for missing section, then CLI overrides
 	vhostConfig := appConfig.VHost
 	if !vhostConfig.Enabled && vhostConfig.Port == 0 {
-		// VHost section was not present in JSON config, enable by default
 		vhostConfig.Enabled = true
-		vhostConfig.Port = 80
+		vhostConfig.Port = VHostDefaultPort
 	}
 	if vhostConfig.Port == 0 {
-		vhostConfig.Port = 80
+		vhostConfig.Port = VHostDefaultPort
 	}
 	if flags.VHostDisable {
 		vhostConfig.Enabled = false
@@ -179,21 +169,19 @@ func New(flags *CLIFlags) (*Config, error) {
 		vhostConfig.Port = flags.VHostPort
 	}
 
-	// TLS config: apply defaults for missing section, then CLI overrides
 	tlsConfig := appConfig.TLS
 	if !tlsConfig.Enabled && tlsConfig.Port == 0 && tlsConfig.CertDir == "" {
-		// TLS section was not present in JSON config, enable by default
 		tlsConfig.Enabled = true
-		tlsConfig.Port = 443
-		tlsConfig.CertDir = "./certs"
+		tlsConfig.Port = TLSDefaultPort
+		tlsConfig.CertDir = TLSCertDirDefault
 		tlsConfig.SkipUpstreamVerify = true
 		tlsConfig.RedirectHTTP = true
 	}
 	if tlsConfig.Port == 0 {
-		tlsConfig.Port = 443
+		tlsConfig.Port = TLSDefaultPort
 	}
 	if tlsConfig.CertDir == "" {
-		tlsConfig.CertDir = "./certs"
+		tlsConfig.CertDir = TLSCertDirDefault
 	}
 	if flags.TLSDisable {
 		tlsConfig.Enabled = false
@@ -225,15 +213,13 @@ func New(flags *CLIFlags) (*Config, error) {
 		Routes:  appConfig.Routes,
 	}
 
-	// 9. Validate the configuration
 	if err := validateConfig(proxy, appConfig.Routes, vhostConfig.Port, vhostConfig.Enabled, tlsConfig); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %v", err)
+		return nil, "", fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	return cfg, nil
+	return cfg, configPath, nil
 }
 
-// splitUpstream splits a comma-separated list of DNS upstream servers.
 func splitUpstream(s string) []string {
 	parts := strings.Split(s, ",")
 	result := make([]string, 0, len(parts))
@@ -246,26 +232,21 @@ func splitUpstream(s string) []string {
 	return result
 }
 
-// validateConfig checks the validity of the configuration.
 func validateConfig(proxy string, routes []validation.RouteConfig, vhostPort int, vhostEnabled bool, tlsCfg TLSConfig) error {
-	// Validate routes
 	if err := validation.ValidateRoutes(routes); err != nil {
 		return err
 	}
 
-	// Validate proxy URL (optional)
 	if proxy != "" {
 		if err := validation.ValidateURL(proxy); err != nil {
 			return fmt.Errorf("invalid proxy URL: %v", err)
 		}
 	}
 
-	// Check if we have at least one route
 	if len(routes) == 0 {
 		return fmt.Errorf("no routes configured. Please add routes to config file or use --target and --port")
 	}
 
-	// Check VHost port doesn't conflict with route ports
 	if vhostEnabled {
 		for _, route := range routes {
 			if route.Port == vhostPort {
@@ -274,7 +255,6 @@ func validateConfig(proxy string, routes []validation.RouteConfig, vhostPort int
 		}
 	}
 
-	// Check TLS port doesn't conflict with route or vhost ports
 	if tlsCfg.Enabled {
 		for _, route := range routes {
 			if route.Port == tlsCfg.Port {

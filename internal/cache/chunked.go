@@ -331,8 +331,8 @@ func (cc *ChunkedCache) Cleanup() error {
 		for i := 0; i < meta.ChunkCount; i++ {
 			chunkPath := cc.getChunkPath(hash, i)
 			if rmErr := os.Remove(chunkPath); rmErr != nil && !os.IsNotExist(rmErr) {
-			slog.Warn("failed to remove chunk file %s", "error", chunkPath, rmErr)
-		}
+				slog.Warn("failed to remove chunk file %s", "error", chunkPath, rmErr)
+			}
 		}
 		// Remove metadata
 		metaPath := cc.getChunkMetadataPath(hash)

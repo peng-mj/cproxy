@@ -2,12 +2,14 @@
 
 # Build script for scproxy - Multi-platform build
 # Supports: Linux/Windows + amd64/arm64
-# Usage: ./build.sh [--upx] [--version VERSION]
+# Usage: ./build.sh [--upx] [--version VERSION] [-d|--docker] [--tag TAG]
 
 set -e
 
 # Parse arguments
 USE_UPX=false
+USE_DOCKER=false
+DOCKER_TAG=""
 for arg in "$@"; do
     case $arg in
         --upx)
@@ -16,6 +18,15 @@ for arg in "$@"; do
             ;;
         --version=*)
             VERSION="${arg#*=}"
+            shift
+            ;;
+        -d|--docker)
+            USE_DOCKER=true
+            shift
+            ;;
+        --tag=*)
+            DOCKER_TAG="${arg#*=}"
+            USE_DOCKER=true
             shift
             ;;
         *)
@@ -36,6 +47,7 @@ OUTPUT_DIR="output"
 VERSION="${VERSION:-dev}"
 BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LDFLAGS="-X main.version=$VERSION -X main.buildTime=$BUILD_TIME"
+GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
 
 # Check if upx is installed
 check_upx() {
@@ -45,6 +57,56 @@ check_upx() {
         return 0
     else
         echo -e "${YELLOW}⚠ UPX not found, skipping compression${NC}"
+        return 1
+    fi
+}
+
+# Check if docker is installed
+check_docker() {
+    if command -v docker &> /dev/null; then
+        DOCKER_VERSION=$(docker --version | head -n1)
+        echo -e "${GREEN}✓ Docker found: ${DOCKER_VERSION}${NC}"
+        return 0
+    else
+        echo -e "${RED}✗ Docker not found, please install Docker first${NC}"
+        return 1
+    fi
+}
+
+# Build Docker image
+build_docker_image() {
+    local DEFAULT_TAG="scproxy:$(date +%Y%m%d%H%M%S)"
+    local TAG="${DOCKER_TAG:-$DEFAULT_TAG}"
+
+    echo -e "${GREEN}======================================"
+    echo -e "Building Docker image: ${TAG}"
+    echo -e "======================================${NC}"
+    echo -e "${YELLOW}Using GOPROXY: ${GOPROXY}${NC}"
+
+    # Check if docker is available
+    if ! check_docker; then
+        return 1
+    fi
+
+    # Build Docker image with build args
+    echo -e "${YELLOW}Building Docker image from source...${NC}"
+    docker build \
+        --build-arg APP_VERSION="${VERSION}" \
+        --build-arg COMMIT_HASH="$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')" \
+        --build-arg GOPROXY="${GOPROXY:-https://goproxy.cn,direct}" \
+        -t "${TAG}" \
+        .
+
+    if [ $? -eq 0 ]; then
+        # Get image size
+        IMAGE_SIZE=$(docker images "${TAG}" --format "{{.Size}}")
+        echo -e "${GREEN}✓ Docker image built successfully: ${TAG}${NC}"
+        echo -e "${GREEN}  Image size: ${IMAGE_SIZE}${NC}"
+        echo -e "\n${YELLOW}To run the container:${NC}"
+        echo -e "  docker run -p 8080:8080 ${TAG}"
+        return 0
+    else
+        echo -e "${RED}✗ Failed to build Docker image${NC}"
         return 1
     fi
 }
@@ -83,7 +145,7 @@ build_platform() {
     echo -e "${GREEN}Building for ${GOOS}/${GOARCH}...${NC}"
 
     # Set environment variables and build
-    GOOS=$GOOS GOARCH=$GOARCH go build \
+    GOPROXY="${GOPROXY:-https://goproxy.cn,direct}" GOOS=$GOOS GOARCH=$GOARCH go build \
         -ldflags "$LDFLAGS" \
         -o "${PLATFORM_DIR}/${OUTPUT_NAME}" \
         .
@@ -121,44 +183,85 @@ build_platform() {
 echo -e "${GREEN}======================================"
 echo -e "Building ${APP_NAME} v${VERSION}"
 echo -e "======================================${NC}"
+echo -e "${YELLOW}Using GOPROXY: ${GOPROXY}${NC}"
 
-# Build for each platform
-for platform in "${PLATFORMS[@]}"; do
-    IFS='/' read -ra PARTS <<< "$platform"
-    GOOS="${PARTS[0]}"
-    GOARCH="${PARTS[1]}"
-    build_platform "$GOOS" "$GOARCH"
-done
+if [ "$USE_DOCKER" = true ]; then
+    # Docker build mode: build for current platform first, then build Docker image
+    CURRENT_GOOS=$(go env GOOS)
+    CURRENT_GOARCH=$(go env GOARCH)
 
-# Create checksums
-echo -e "${YELLOW}Creating checksums...${NC}"
-cd "$OUTPUT_DIR"
-sha256sum *.tar.gz 2>/dev/null > SHA256SUMS.txt || echo "No archives to checksum"
-cd ..
-
-# Summary
-echo -e "${GREEN}======================================"
-echo -e "Build completed successfully!"
-echo -e "======================================${NC}"
-echo -e "${YELLOW}Output directory: ${OUTPUT_DIR}/${NC}"
-echo -e "${YELLOW}Built versions:${NC}"
-
-for platform in "${PLATFORMS[@]}"; do
-    IFS='/' read -ra PARTS <<< "$platform"
-    GOOS="${PARTS[0]}"
-    GOARCH="${PARTS[1]}"
-
-    if [ -f "${OUTPUT_DIR}/${APP_NAME}-${GOOS}-${GOARCH}.tar.gz" ]; then
-        echo -e "  ${GREEN}✓${NC} ${GOOS}/${GOARCH}"
+    # Set default Docker tag if not specified
+    if [ -z "$DOCKER_TAG" ]; then
+        DOCKER_TAG="scproxy:$(date +%Y%m%d%H%M%S)"
     fi
-done
 
-echo -e "\n${YELLOW}Usage:${NC}"
-echo -e "  tar -xzf ${APP_NAME}-<platform>-<arch>.tar.gz"
-echo -e "\n${YELLOW}Installation:${NC}"
-echo -e "  sudo cp ${OUTPUT_DIR}/linux-amd64/${APP_NAME} /usr/local/bin/"
-echo -e "  sudo chmod +x /usr/local/bin/${APP_NAME}"
+    echo -e "${YELLOW}Docker mode: Building for current platform (${CURRENT_GOOS}/${CURRENT_GOARCH})...${NC}"
+    build_platform "$CURRENT_GOOS" "$CURRENT_GOARCH"
+
+    if [ $? -eq 0 ]; then
+        # Build Docker image
+        build_docker_image
+    else
+        echo -e "${RED}✗ Platform build failed, skipping Docker image build${NC}"
+        exit 1
+    fi
+
+    # Summary for Docker mode
+    echo -e "${GREEN}======================================"
+    echo -e "Docker build completed successfully!"
+    echo -e "======================================${NC}"
+else
+    # Normal multi-platform build mode
+    # Build for each platform
+    for platform in "${PLATFORMS[@]}"; do
+        IFS='/' read -ra PARTS <<< "$platform"
+        GOOS="${PARTS[0]}"
+        GOARCH="${PARTS[1]}"
+        build_platform "$GOOS" "$GOARCH"
+    done
+
+    # Create checksums
+    echo -e "${YELLOW}Creating checksums...${NC}"
+    cd "$OUTPUT_DIR"
+    sha256sum *.tar.gz 2>/dev/null > SHA256SUMS.txt || echo "No archives to checksum"
+    cd ..
+
+    # Summary
+    echo -e "${GREEN}======================================"
+    echo -e "Build completed successfully!"
+    echo -e "======================================${NC}"
+    echo -e "${YELLOW}Output directory: ${OUTPUT_DIR}/${NC}"
+    echo -e "${YELLOW}Built versions:${NC}"
+
+    for platform in "${PLATFORMS[@]}"; do
+        IFS='/' read -ra PARTS <<< "$platform"
+        GOOS="${PARTS[0]}"
+        GOARCH="${PARTS[1]}"
+
+        if [ -f "${OUTPUT_DIR}/${APP_NAME}-${GOOS}-${GOARCH}.tar.gz" ]; then
+            echo -e "  ${GREEN}✓${NC} ${GOOS}/${GOARCH}"
+        fi
+    done
+fi
+
+if [ "$USE_DOCKER" = true ]; then
+    echo -e "\n${YELLOW}Docker usage:${NC}"
+    echo -e "  docker run -p 8080:8080 ${DOCKER_TAG:-scproxy:latest}"
+else
+    echo -e "\n${YELLOW}Usage:${NC}"
+    echo -e "  tar -xzf ${APP_NAME}-<platform>-<arch>.tar.gz"
+    echo -e "\n${YELLOW}Installation:${NC}"
+    echo -e "  sudo cp ${OUTPUT_DIR}/linux-amd64/${APP_NAME} /usr/local/bin/"
+    echo -e "  sudo chmod +x /usr/local/bin/${APP_NAME}"
+fi
 echo -e "\n${YELLOW}Build options:${NC}"
-echo -e "  ./build.sh              # Normal build"
-echo -e "  ./build.sh --upx        # Build with UPX compression"
-echo -e "  ./build.sh --version=1.0.0 # Set version"
+echo -e "  ./build.sh                       # Normal multi-platform build"
+echo -e "  ./build.sh --upx                 # Build with UPX compression"
+echo -e "  ./build.sh --version=1.0.0        # Set version"
+echo -e "  ./build.sh --docker               # Build Docker image (default tag: scproxy:YYYYMMDDHHMMSS)"
+echo -e "  ./build.sh -d                     # Same as --docker"
+echo -e "  ./build.sh --tag=myrepo/scproxy:v1.0.0  # Build Docker image with custom tag"
+echo -e "  ./build.sh --docker --tag=custom:name   # Build Docker with specific tag"
+echo -e "\n${YELLOW}Environment variables:${NC}"
+echo -e "  GOPROXY=URL                      # Set Go module proxy (default: https://goproxy.cn,direct)"
+echo -e "  Example: GOPROXY=https://goproxy.cn,direct ./build.sh --docker"
