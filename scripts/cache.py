@@ -91,7 +91,7 @@ class CacheManager:
         print(f'Minimum file size: {cache_config["minSizeKB"]} KB')
         print(f'Maximum file size: {cache_config["maxSizeKB"]} KB')
         print(f'Cache authentication: {"Enabled" if cache_config["cacheAuth"] else "Disabled"}')
-        print(f'Excluded extensions: "{", ".join(cache_config["excludeExtensions"])}"')
+        print(f'Excluded patterns: "{", ".join(cache_config.get("excludeLastPfx", []))}"')
         print('')
         print('Cache statistics:')
 

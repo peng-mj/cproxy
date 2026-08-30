@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/peng-mj/scproxy/internal/stats"
@@ -32,7 +33,7 @@ type AppConfig struct {
 // DNSConfig holds DNS proxy server configuration.
 type DNSConfig struct {
 	Enabled  bool     `json:"enabled"`  // Enable DNS server
-	Addr     string   `json:"addr"`     // Listen address (e.g. ":53")
+	Addr     string   `json:"addr"`     // Listen address (e.g. ":10053")
 	Upstream []string `json:"upstream"` // Upstream DNS servers (e.g. ["8.8.8.8:53"])
 	ProxyIP  string   `json:"proxyIP"`  // IP to return for proxied domains (default "127.0.0.1")
 }
@@ -54,14 +55,13 @@ type TLSConfig struct {
 
 // CacheConfig represents cache-specific configuration.
 type CacheConfig struct {
-	Enabled           bool     `json:"enabled"`           // Enable caching
-	Directory         string   `json:"directory"`         // Cache directory path
-	MaxTotalSizeMB    int      `json:"maxTotalSizeMB"`    // Maximum total cache size in MB
-	MinFileSizeKB     int      `json:"minFileSizeKB"`     // Minimum response size to cache in KB
-	MaxFileSizeKB     int      `json:"maxFileSizeKB"`     // Maximum response size to cache in KB
-	CacheAuth         bool     `json:"cacheAuth"`         // Cache authenticated requests
-	ExcludeExtensions []string `json:"excludeExtensions"` // File extensions to exclude from caching
-	ExcludePaths      []string `json:"excludePaths"`      // URL path prefixes to exclude from caching
+	Enabled        bool     `json:"enabled"`        // Enable caching
+	Directory      string   `json:"directory"`      // Cache directory path
+	MaxTotalSizeMB int      `json:"maxTotalSizeMB"` // Maximum total cache size in MB
+	MinFileSizeKB  int      `json:"minFileSizeKB"`  // Minimum response size to cache in KB
+	MaxFileSizeKB  int      `json:"maxFileSizeKB"`  // Maximum response size to cache in KB
+	CacheAuth      bool     `json:"cacheAuth"`      // Cache authenticated requests
+	ExcludeLastPfx []string `json:"excludeLastPfx"` // URL path patterns to exclude from caching
 }
 
 // defaultAppConfig returns the default application configuration.
@@ -70,14 +70,13 @@ func defaultAppConfig() *AppConfig {
 		Proxy: "",
 		Host:  "0.0.0.0",
 		Cache: CacheConfig{
-			Enabled:           true,
-			Directory:         "./cache",
-			MaxTotalSizeMB:    0,
-			MinFileSizeKB:     0,
-			MaxFileSizeKB:     0,
-			CacheAuth:         false,
-			ExcludeExtensions: []string{"html", "js", "css", "json", "xml"},
-			ExcludePaths:      []string{},
+			Enabled:        true,
+			Directory:      DefaultCacheDir,
+			MaxTotalSizeMB: 0,
+			MinFileSizeKB:  0,
+			MaxFileSizeKB:  0,
+			CacheAuth:      false,
+			ExcludeLastPfx: []string{"index.html"},
 		},
 		Logging: LoggingConfig{
 			Level:  LogLevelInfo,
@@ -85,23 +84,40 @@ func defaultAppConfig() *AppConfig {
 		},
 		DNS: DNSConfig{
 			Enabled:  false,
-			Addr:     ":53",
-			Upstream: []string{"8.8.8.8:53"},
-			ProxyIP:  "127.0.0.1",
+			Addr:     DNSDefaultAddr,
+			Upstream: slices.Clone(DNSDefaultUpstreams),
+			ProxyIP:  DNSDefaultProxyIP,
 		},
 		VHost: VHostConfig{
 			Enabled: false,
-			Port:    80,
+			Port:    VHostDefaultPort,
 		},
 		TLS: TLSConfig{
 			Enabled:            true,
-			Port:               443,
-			CertDir:            "./certs",
+			Port:               TLSDefaultPort,
+			CertDir:            TLSCertDirDefault,
 			SkipUpstreamVerify: true,
 			RedirectHTTP:       true,
 		},
 		Routes: []validation.RouteConfig{},
 	}
+}
+
+func resolveCacheDir(preferred, fallback string) string {
+	if err := os.MkdirAll(preferred, 0755); err == nil {
+		if f, err := os.CreateTemp(preferred, ".scproxy-probe-*"); err == nil {
+			name := f.Name()
+			f.Close()
+			os.Remove(name)
+			return preferred
+		}
+	}
+	fmt.Fprintf(os.Stderr, "Warning: cannot use cache directory %s, falling back to %s\n", preferred, fallback)
+	return fallback
+}
+
+func resolveDefaultCacheDir() string {
+	return resolveCacheDir(DefaultCacheDir, FallbackCacheDir)
 }
 
 // GetDefaultConfigPath returns the default configuration file path.
@@ -143,6 +159,33 @@ func LoadAppConfig(configPath string) (*AppConfig, error) {
 	var config AppConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
+	}
+
+	var legacy struct {
+		Cache struct {
+			ExcludeExtensions []string `json:"excludeExtensions"`
+			ExcludePaths      []string `json:"excludePaths"`
+		} `json:"cache"`
+	}
+	if json.Unmarshal(data, &legacy) == nil {
+		var legacyPatterns []string
+		for _, pattern := range legacy.Cache.ExcludePaths {
+			legacyPatterns = append(legacyPatterns, pattern)
+		}
+		for _, ext := range legacy.Cache.ExcludeExtensions {
+			if !strings.HasPrefix(ext, ".") {
+				ext = "." + ext
+			}
+			legacyPatterns = append(legacyPatterns, ext)
+		}
+		if len(legacyPatterns) == 0 {
+			// no legacy keys present
+		} else if len(config.Cache.ExcludeLastPfx) == 0 {
+			config.Cache.ExcludeLastPfx = legacyPatterns
+			fmt.Fprintf(os.Stderr, "Warning: migrated deprecated 'excludeExtensions'/'excludePaths' to 'cache.excludeLastPfx': %v\n", legacyPatterns)
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: config uses deprecated 'excludeExtensions'/'excludePaths', which are ignored because 'cache.excludeLastPfx' is set\n")
+		}
 	}
 
 	return &config, nil
@@ -194,6 +237,7 @@ func InitDefaultAppConfig(configPath string) error {
 
 	// Create and save default config
 	defaultConfig := defaultAppConfig()
+	defaultConfig.Cache.Directory = resolveDefaultCacheDir()
 	if err := SaveAppConfig(defaultConfig, configPath); err != nil {
 		return fmt.Errorf("failed to save default config: %v", err)
 	}
@@ -223,18 +267,9 @@ func (c *CacheConfig) Validate() error {
 		return fmt.Errorf("min file size (%d KB) cannot be greater than max file size (%d KB)", c.MinFileSizeKB, c.MaxFileSizeKB)
 	}
 
-	for _, ext := range c.ExcludeExtensions {
-		if ext == "" {
-			return fmt.Errorf("exclude extensions cannot contain empty strings")
-		}
-	}
-
-	for _, pattern := range c.ExcludePaths {
+	for _, pattern := range c.ExcludeLastPfx {
 		if pattern == "" {
-			return fmt.Errorf("exclude paths cannot contain empty strings")
-		}
-		if !strings.HasPrefix(pattern, "/") {
-			return fmt.Errorf("exclude path must start with '/': %q", pattern)
+			return fmt.Errorf("exclude patterns cannot contain empty strings")
 		}
 	}
 

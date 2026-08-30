@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,7 +12,7 @@ import (
 func TestMergeDNSVHost(t *testing.T) {
 	defaults := DNSConfig{
 		Addr:     DNSDefaultAddr,
-		Upstream: []string{DNSDefaultUpstream},
+		Upstream: DNSDefaultUpstreams,
 		ProxyIP:  DNSDefaultProxyIP,
 	}
 
@@ -47,13 +49,13 @@ func TestMergeDNSVHost(t *testing.T) {
 			name:      "dns enabled forces vhost on",
 			dnsIn:     DNSConfig{Enabled: true},
 			vhostIn:   VHostConfig{},
-			wantDNS:   DNSConfig{Enabled: true, Addr: DNSDefaultAddr, Upstream: []string{DNSDefaultUpstream}, ProxyIP: DNSDefaultProxyIP},
+			wantDNS:   DNSConfig{Enabled: true, Addr: DNSDefaultAddr, Upstream: DNSDefaultUpstreams, ProxyIP: DNSDefaultProxyIP},
 			wantVHost: VHostConfig{Enabled: true, Port: VHostDefaultPort},
 		},
 		{
 			name:      "flag enables both and sets proxy ip",
 			flag:      "192.168.1.100",
-			wantDNS:   DNSConfig{Enabled: true, Addr: DNSDefaultAddr, Upstream: []string{DNSDefaultUpstream}, ProxyIP: "192.168.1.100"},
+			wantDNS:   DNSConfig{Enabled: true, Addr: DNSDefaultAddr, Upstream: DNSDefaultUpstreams, ProxyIP: "192.168.1.100"},
 			wantVHost: VHostConfig{Enabled: true, Port: VHostDefaultPort},
 		},
 		{
@@ -67,7 +69,7 @@ func TestMergeDNSVHost(t *testing.T) {
 		{
 			name:      "flag ipv6 accepted",
 			flag:      "::1",
-			wantDNS:   DNSConfig{Enabled: true, Addr: DNSDefaultAddr, Upstream: []string{DNSDefaultUpstream}, ProxyIP: "::1"},
+			wantDNS:   DNSConfig{Enabled: true, Addr: DNSDefaultAddr, Upstream: DNSDefaultUpstreams, ProxyIP: "::1"},
 			wantVHost: VHostConfig{Enabled: true, Port: VHostDefaultPort},
 		},
 		{
@@ -125,13 +127,82 @@ func TestDefaultAppConfigDNSVHostDisabled(t *testing.T) {
 	if cfg.DNS.Addr != DNSDefaultAddr {
 		t.Errorf("default DNS addr = %q, want %q", cfg.DNS.Addr, DNSDefaultAddr)
 	}
-	if len(cfg.DNS.Upstream) != 1 || cfg.DNS.Upstream[0] != DNSDefaultUpstream {
-		t.Errorf("default DNS upstream = %v, want [%s]", cfg.DNS.Upstream, DNSDefaultUpstream)
+	if len(cfg.DNS.Upstream) != 3 || !reflect.DeepEqual(cfg.DNS.Upstream, DNSDefaultUpstreams) {
+		t.Errorf("default DNS upstream = %v, want %v", cfg.DNS.Upstream, DNSDefaultUpstreams)
 	}
 	if cfg.DNS.ProxyIP != DNSDefaultProxyIP {
 		t.Errorf("default DNS proxyIP = %q, want %q", cfg.DNS.ProxyIP, DNSDefaultProxyIP)
 	}
 	if cfg.VHost.Port != VHostDefaultPort {
 		t.Errorf("default VHost port = %d, want %d", cfg.VHost.Port, VHostDefaultPort)
+	}
+	if cfg.Cache.Directory != DefaultCacheDir {
+		t.Errorf("default cache directory = %q, want %q", cfg.Cache.Directory, DefaultCacheDir)
+	}
+}
+
+// TestResolveCacheDir checks the preferred/fallback cache directory resolution.
+func TestResolveCacheDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	preferred := filepath.Join(tmpDir, "preferred")
+	if got := resolveCacheDir(preferred, FallbackCacheDir); got != preferred {
+		t.Errorf("resolveCacheDir(creatable) = %q, want %q", got, preferred)
+	}
+
+	blocker := filepath.Join(tmpDir, "blocker")
+	if err := os.WriteFile(blocker, []byte("x"), 0644); err != nil {
+		t.Fatalf("failed to create blocker file: %v", err)
+	}
+	fallback := filepath.Join(tmpDir, "fallback")
+	if got := resolveCacheDir(filepath.Join(blocker, "sub"), fallback); got != fallback {
+		t.Errorf("resolveCacheDir(non-creatable) = %q, want %q", got, fallback)
+	}
+}
+
+// TestLoadAppConfigLegacyExcludeMigration checks that deprecated exclusion keys
+// are converted to excludeLastPfx when it is not set, and ignored when it is.
+func TestLoadAppConfigLegacyExcludeMigration(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "config.json")
+
+	legacyJSON := `{
+		"cache": {
+			"enabled": true,
+			"directory": "./cache",
+			"excludeExtensions": ["html", "js"],
+			"excludePaths": ["/ubuntu/dists/"]
+		}
+	}`
+	if err := os.WriteFile(path, []byte(legacyJSON), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+	cfg, err := LoadAppConfig(path)
+	if err != nil {
+		t.Fatalf("LoadAppConfig failed: %v", err)
+	}
+	want := []string{"/ubuntu/dists/", ".html", ".js"}
+	if !reflect.DeepEqual(cfg.Cache.ExcludeLastPfx, want) {
+		t.Errorf("migrated excludeLastPfx = %v, want %v", cfg.Cache.ExcludeLastPfx, want)
+	}
+
+	bothJSON := `{
+		"cache": {
+			"enabled": true,
+			"directory": "./cache",
+			"excludeLastPfx": ["index.html"],
+			"excludeExtensions": ["html"],
+			"excludePaths": ["/ubuntu/dists/"]
+		}
+	}`
+	if err := os.WriteFile(path, []byte(bothJSON), 0644); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+	cfg, err = LoadAppConfig(path)
+	if err != nil {
+		t.Fatalf("LoadAppConfig failed: %v", err)
+	}
+	if !reflect.DeepEqual(cfg.Cache.ExcludeLastPfx, []string{"index.html"}) {
+		t.Errorf("excludeLastPfx = %v, want [index.html] (legacy keys should be ignored)", cfg.Cache.ExcludeLastPfx)
 	}
 }

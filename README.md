@@ -141,13 +141,12 @@ Created automatically at `./cache/scproxy.json` on first run:
   "routes": [],
   "cache": {
     "enabled": true,
-    "directory": "./cache",
+    "directory": "/data/cache",
     "maxTotalSizeMB": 0,
     "minFileSizeKB": 0,
     "maxFileSizeKB": 0,
     "cacheAuth": false,
-    "excludeExtensions": ["html", "js", "css", "json", "xml"],
-    "excludePaths": []
+    "excludeLastPfx": ["index.html"]
   },
   "logging": {
     "level": "info",
@@ -189,37 +188,38 @@ Created automatically at `./cache/scproxy.json` on first run:
 | Setting | Description |
 |---------|-------------|
 | `enabled` | Enable/disable caching |
-| `directory` | Storage path |
+| `directory` | Storage path (default `/data/cache`, falls back to `./cache` without write permission) |
 | `maxTotalSizeMB` | Total size limit (0 = unlimited, enables LRU when set) |
 | `minFileSizeKB` | Min file size to cache |
 | `maxFileSizeKB` | Max file size to cache |
 | `cacheAuth` | Cache authenticated requests |
-| `excludeExtensions` | File extensions to skip |
-| `excludePaths` | URL path patterns to skip |
+| `excludeLastPfx` | URL path suffix patterns to skip |
 
 ### Path Exclusion
 
-`excludePaths` supports two modes:
+`excludeLastPfx` patterns are matched against the end of the URL path (suffix, case-insensitive):
 
 | Pattern | Matches |
 |---------|---------|
-| `/ubuntu/dists/` | All paths under this directory (prefix) |
-| `/etc/resolv.conf` | Only this file (exact) |
+| `index.html` | `/aa/bb/cc/index.html` |
+| `.html` | Any path ending with `.html` |
+| `cc/index.html` | Any path ending with `cc/index.html` |
+| `/etc/resolv.conf` | Only this exact path (full-path suffix) |
+| `/ubuntu/dists/` | Paths ending with `/ubuntu/dists/` |
 
 Rules:
-- Must start with `/`
-- Trailing `/` = prefix match (directory)
-- No trailing `/` = exact match (file)
+- All patterns are suffix matches, case-insensitive
+- Deprecated `excludeExtensions`/`excludePaths` entries are converted automatically at startup (with a warning) when `excludeLastPfx` is not set
 
 Example:
 
 ```json
 {
   "cache": {
-    "excludePaths": [
+    "excludeLastPfx": [
       "/ubuntu/dists/",
-      "/pypi/simple/",
-      "/etc/resolv.conf"
+      "/etc/resolv.conf",
+      "index.html"
     ]
   }
 }

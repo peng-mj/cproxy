@@ -14,13 +14,8 @@ func ShouldCacheRequest(req *http.Request, cacheConfig config.CacheConfig) bool 
 		return false
 	}
 
-	// Check file extension exclusion
-	if IsExcludedExtension(req.URL.Path, cacheConfig.ExcludeExtensions) {
-		return false
-	}
-
-	// Check URL path exclusion (prefix or exact)
-	if IsExcludedPath(req.URL.Path, cacheConfig.ExcludePaths) {
+	// Check URL path exclusion (suffix match against the end of the path)
+	if IsExcludedLastPfx(req.URL.Path, cacheConfig.ExcludeLastPfx) {
 		return false
 	}
 
@@ -32,23 +27,23 @@ func ShouldCacheRequest(req *http.Request, cacheConfig config.CacheConfig) bool 
 	return true
 }
 
-// IsExcludedPath checks if a URL path is excluded.
-// Patterns ending with "/" use prefix matching (exclude a directory).
-// Exact paths without trailing "/" use exact matching (exclude a single file).
-func IsExcludedPath(path string, excludedPaths []string) bool {
-	for _, pattern := range excludedPaths {
-		if strings.HasSuffix(pattern, "/") {
-			// Directory prefix pattern: match all paths under this prefix
-			if strings.HasPrefix(path, pattern) {
-				return true
-			}
-		} else {
-			// Exact file pattern: match only this specific path
-			if path == pattern {
-				return true
-			}
+// IsExcludedLastPfx checks if a URL path is excluded.
+// Every pattern is matched case-insensitively against the end of the path,
+// e.g. "index.html" matches "/aa/bb/cc/index.html", ".html" matches any
+// path ending with ".html", and "/index.html" matches any path whose
+// trailing segments end with "/index.html".
+func IsExcludedLastPfx(path string, patterns []string) bool {
+	lowerPath := strings.ToLower(path)
+
+	for _, pattern := range patterns {
+		if pattern == "" {
+			continue
+		}
+		if strings.HasSuffix(lowerPath, strings.ToLower(pattern)) {
+			return true
 		}
 	}
+
 	return false
 }
 

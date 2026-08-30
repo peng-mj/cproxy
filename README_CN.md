@@ -142,13 +142,12 @@ scproxy --target https://httpbin.org --port 9999
   "routes": [],
   "cache": {
     "enabled": true,
-    "directory": "./cache",
+    "directory": "/data/cache",
     "maxTotalSizeMB": 0,
     "minFileSizeKB": 0,
     "maxFileSizeKB": 0,
     "cacheAuth": false,
-    "excludeExtensions": ["html", "js", "css", "json", "xml"],
-    "excludePaths": []
+    "excludeLastPfx": ["index.html"]
   },
   "logging": {
     "level": "info",
@@ -190,37 +189,38 @@ scproxy --target https://httpbin.org --port 9999
 | 设置 | 描述 |
 |------|------|
 | `enabled` | 启用/禁用缓存 |
-| `directory` | 存储路径 |
+| `directory` | 存储路径（默认 `/data/cache`，无写权限时回退 `./cache`） |
 | `maxTotalSizeMB` | 总大小限制（0 = 无限制，设置后启用 LRU） |
 | `minFileSizeKB` | 最小缓存文件大小 |
 | `maxFileSizeKB` | 最大缓存文件大小 |
 | `cacheAuth` | 缓存认证请求 |
-| `excludeExtensions` | 跳过的文件扩展名 |
-| `excludePaths` | 跳过的 URL 路径模式 |
+| `excludeLastPfx` | 跳过的 URL 路径后缀模式 |
 
 ### 路径排除
 
-`excludePaths` 支持两种模式：
+`excludeLastPfx` 的所有模式都按 URL 路径的**结尾**匹配（后缀匹配，忽略大小写）：
 
 | 模式 | 匹配内容 |
 |------|----------|
-| `/ubuntu/dists/` | 此目录下的所有路径（前缀匹配） |
-| `/etc/resolv.conf` | 仅此文件（精确匹配） |
+| `index.html` | `/aa/bb/cc/index.html` |
+| `.html` | 任何以 `.html` 结尾的路径 |
+| `cc/index.html` | 任何以 `cc/index.html` 结尾的路径 |
+| `/etc/resolv.conf` | 仅此精确路径（完整路径后缀） |
+| `/ubuntu/dists/` | 以 `/ubuntu/dists/` 结尾的路径 |
 
 规则：
-- 必须以 `/` 开头
-- 末尾有 `/` = 前缀匹配（目录）
-- 末尾无 `/` = 精确匹配（文件）
+- 所有模式均为后缀匹配，忽略大小写
+- 已废弃的 `excludeExtensions`/`excludePaths` 在未设置 `excludeLastPfx` 时会在启动时自动转换（并输出告警）
 
 示例：
 
 ```json
 {
   "cache": {
-    "excludePaths": [
+    "excludeLastPfx": [
       "/ubuntu/dists/",
-      "/pypi/simple/",
-      "/etc/resolv.conf"
+      "/etc/resolv.conf",
+      "index.html"
     ]
   }
 }

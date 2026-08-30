@@ -599,131 +599,136 @@ func containsMiddle(s, substr string) bool {
 	return false
 }
 
-func TestIsExcludedPath(t *testing.T) {
+func TestIsExcludedLastPfx(t *testing.T) {
 	tests := []struct {
-		name          string
-		path          string
-		excludedPaths []string
-		want          bool
+		name     string
+		path     string
+		patterns []string
+		want     bool
 	}{
 		{
-			name:          "empty exclusion list",
-			path:          "/ubuntu/dists/focal/Release",
-			excludedPaths: []string{},
-			want:          false,
+			name:     "empty exclusion list",
+			path:     "/ubuntu/dists/focal/Release",
+			patterns: []string{},
+			want:     false,
 		},
 		{
-			name:          "nil exclusion list",
-			path:          "/ubuntu/dists/focal/Release",
-			excludedPaths: nil,
-			want:          false,
+			name:     "nil exclusion list",
+			path:     "/ubuntu/dists/focal/Release",
+			patterns: nil,
+			want:     false,
 		},
 		{
-			name:          "exact prefix match",
-			path:          "/ubuntu/dists/focal/Release",
-			excludedPaths: []string{"/ubuntu/dists/"},
-			want:          true,
+			name:     "suffix match - full file name",
+			path:     "/aa/bb/cc/index.html",
+			patterns: []string{"index.html"},
+			want:     true,
 		},
 		{
-			name:          "nested path match",
-			path:          "/ubuntu/dists/focal/main/binary-amd64/Packages.gz",
-			excludedPaths: []string{"/ubuntu/dists/"},
-			want:          true,
+			name:     "suffix match - partial file name",
+			path:     "/aa/bb/cc/index.html",
+			patterns: []string{"dex.html"},
+			want:     true,
 		},
 		{
-			name:          "no match - different prefix",
-			path:          "/ubuntu/pool/main/f/file.tar.xz",
-			excludedPaths: []string{"/ubuntu/dists/"},
-			want:          false,
+			name:     "suffix match - extension",
+			path:     "/aa/bb/cc/index.html",
+			patterns: []string{".html"},
+			want:     true,
 		},
 		{
-			name:          "pip simple index",
-			path:          "/pypi/simple/requests/",
-			excludedPaths: []string{"/pypi/simple/"},
-			want:          true,
+			name:     "suffix match - extension only",
+			path:     "/aa/bb/cc/index.html",
+			patterns: []string{"tml"},
+			want:     true,
 		},
 		{
-			name:          "multiple prefixes - first matches",
-			path:          "/debian/dists/stable/Release",
-			excludedPaths: []string{"/ubuntu/dists/", "/debian/dists/"},
-			want:          true,
+			name:     "suffix match - crosses segment boundary",
+			path:     "/aa/bb/cc/index.html",
+			patterns: []string{"cc/index.html"},
+			want:     true,
 		},
 		{
-			name:          "multiple prefixes - second matches",
-			path:          "/debian/dists/stable/Release",
-			excludedPaths: []string{"/ubuntu/dists/", "/debian/dists/"},
-			want:          true,
+			name:     "suffix match - leading slash file name",
+			path:     "/aa/bb/index.html",
+			patterns: []string{"/index.html"},
+			want:     true,
 		},
 		{
-			name:          "multiple prefixes - none matches",
-			path:          "/packages/requests-2.28.0.whl",
-			excludedPaths: []string{"/ubuntu/dists/", "/debian/dists/"},
-			want:          false,
+			name:     "suffix match - trailing slash directory",
+			path:     "/mirror/ubuntu/dists/",
+			patterns: []string{"/ubuntu/dists/"},
+			want:     true,
 		},
 		{
-			name:          "root path exclusion",
-			path:          "/",
-			excludedPaths: []string{"/"},
-			want:          true,
+			name:     "deeper path not matched",
+			path:     "/ubuntu/dists/focal/Release",
+			patterns: []string{"/ubuntu/dists/"},
+			want:     false,
 		},
 		{
-			name:          "partial prefix no match",
-			path:          "/ubuntu-dists/other",
-			excludedPaths: []string{"/ubuntu/dists/"},
-			want:          false,
+			name:     "suffix match - full path equals pattern",
+			path:     "/etc/resolv.conf",
+			patterns: []string{"/etc/resolv.conf"},
+			want:     true,
 		},
 		{
-			name:          "exact file match",
-			path:          "/etc/resolv.conf",
-			excludedPaths: []string{"/etc/resolv.conf"},
-			want:          true,
+			name:     "no match - different file",
+			path:     "/etc/hosts",
+			patterns: []string{"/etc/resolv.conf"},
+			want:     false,
 		},
 		{
-			name:          "exact file no match - different file",
-			path:          "/etc/hosts",
-			excludedPaths: []string{"/etc/resolv.conf"},
-			want:          false,
+			name:     "no match - longer path",
+			path:     "/etc/resolv.conf.bak",
+			patterns: []string{"/etc/resolv.conf"},
+			want:     false,
 		},
 		{
-			name:          "exact file no match - subpath not matched",
-			path:          "/etc/resolv.conf.bak",
-			excludedPaths: []string{"/etc/resolv.conf"},
-			want:          false,
+			name:     "suffix match - extension case-insensitive",
+			path:     "/ubuntu/pool/main/f/File.HTML",
+			patterns: []string{"html"},
+			want:     true,
 		},
 		{
-			name:          "mixed prefix and exact patterns - prefix match",
-			path:          "/ubuntu/dists/focal/Release",
-			excludedPaths: []string{"/etc/resolv.conf", "/ubuntu/dists/"},
-			want:          true,
+			name:     "suffix no match",
+			path:     "/packages/requests-2.28.0.whl",
+			patterns: []string{"html"},
+			want:     false,
 		},
 		{
-			name:          "mixed prefix and exact patterns - exact match",
-			path:          "/etc/resolv.conf",
-			excludedPaths: []string{"/ubuntu/dists/", "/etc/resolv.conf"},
-			want:          true,
+			name:     "root path equals pattern",
+			path:     "/",
+			patterns: []string{"/"},
+			want:     true,
 		},
 		{
-			name:          "mixed patterns - no match",
-			path:          "/var/log/syslog",
-			excludedPaths: []string{"/etc/resolv.conf", "/ubuntu/dists/"},
-			want:          false,
+			name:     "root pattern does not match deeper paths",
+			path:     "/a/b",
+			patterns: []string{"/"},
+			want:     false,
+		},
+		{
+			name:     "empty pattern is ignored",
+			path:     "/a/b/c.txt",
+			patterns: []string{""},
+			want:     false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := IsExcludedPath(tt.path, tt.excludedPaths)
+			got := IsExcludedLastPfx(tt.path, tt.patterns)
 			if got != tt.want {
-				t.Errorf("IsExcludedPath(%q, %v) = %v, want %v", tt.path, tt.excludedPaths, got, tt.want)
+				t.Errorf("IsExcludedLastPfx(%q, %v) = %v, want %v", tt.path, tt.patterns, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestShouldCacheRequest_ExcludePaths(t *testing.T) {
+func TestShouldCacheRequest_ExcludeLastPfx(t *testing.T) {
 	cfg := config.CacheConfig{
-		ExcludeExtensions: []string{},
-		ExcludePaths:      []string{"/ubuntu/dists/", "/pypi/simple/", "/etc/resolv.conf"},
+		ExcludeLastPfx: []string{"/ubuntu/dists/", "/etc/resolv.conf", "index.html"},
 	}
 
 	tests := []struct {
@@ -739,28 +744,34 @@ func TestShouldCacheRequest_ExcludePaths(t *testing.T) {
 			want:   true,
 		},
 		{
-			name:   "prefix excluded - ubuntu dists",
+			name:   "directory suffix excluded",
+			method: "GET",
+			path:   "/mirror/ubuntu/dists/",
+			want:   false,
+		},
+		{
+			name:   "deeper path still cached",
 			method: "GET",
 			path:   "/ubuntu/dists/focal/Release",
-			want:   false,
+			want:   true,
 		},
 		{
-			name:   "prefix excluded - pypi simple",
-			method: "GET",
-			path:   "/pypi/simple/requests/",
-			want:   false,
-		},
-		{
-			name:   "exact file excluded",
+			name:   "full path excluded",
 			method: "GET",
 			path:   "/etc/resolv.conf",
 			want:   false,
 		},
 		{
-			name:   "exact file no match - prefix free-ride",
+			name:   "longer path not excluded",
 			method: "GET",
 			path:   "/etc/resolv.conf.backup",
 			want:   true,
+		},
+		{
+			name:   "file name suffix excluded",
+			method: "GET",
+			path:   "/mirror/site/index.html",
+			want:   false,
 		},
 		{
 			name:   "POST not cached regardless",

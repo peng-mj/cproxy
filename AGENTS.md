@@ -34,7 +34,7 @@ internal/
 
 - **Don't use Taskfile.yml** - Has incorrect import paths (`github.com/Madh93/scproxy/internal/version`). Use `make` commands instead.
 - **Integration tests require Python 3** - All test scripts in `scripts/` are Python.
-- **Default cache directory**: `./cache/` with config at `./cache/scproxy.json`
+- **Default cache directory**: `/data/cache` (falls back to `./cache` without write permission); config file at `./cache/config.json` or `/etc/scproxy/config.json`
 - **Version info**: Embedded via ldflags in `make build` (not in `internal/version` package)
 - **Go version**: 1.24.3 (from `go.mod`)
 - **Only external deps**: `github.com/spf13/pflag`, `github.com/brettski/go-termtables`

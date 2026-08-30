@@ -33,6 +33,10 @@ TODO.md
 
 # Build output
 output/
+scproxy
+
+# Generated certificates
+certs/
 
 # Coverage reports
 coverage.html

@@ -30,13 +30,13 @@ func createTestLogger() *logging.Logger {
 func createTestConfig(cacheDir string) *config.Config {
 	return &config.Config{
 		Cache: config.CacheConfig{
-			Enabled:           true,
-			Directory:         cacheDir,
-			MaxTotalSizeMB:    0,
-			MinFileSizeKB:     0,
-			MaxFileSizeKB:     0,
-			CacheAuth:         false,
-			ExcludeExtensions: []string{"html", "js", "css", "json", "xml"},
+			Enabled:        true,
+			Directory:      cacheDir,
+			MaxTotalSizeMB: 0,
+			MinFileSizeKB:  0,
+			MaxFileSizeKB:  0,
+			CacheAuth:      false,
+			ExcludeLastPfx: []string{"html", "js", "css", "json", "xml"},
 		},
 	}
 }

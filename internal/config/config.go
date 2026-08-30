@@ -4,21 +4,25 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 
 	"github.com/peng-mj/scproxy/internal/validation"
 )
 
 const (
-	AppName            = "scproxy"
-	LocalConfig        = "./cache/config.json"
-	EtcConfig          = "/etc/scproxy/config.json"
-	DNSDefaultAddr     = ":53"
-	DNSDefaultUpstream = "8.8.8.8:53"
-	DNSDefaultProxyIP  = "127.0.0.1"
-	VHostDefaultPort   = 80
-	TLSDefaultPort     = 443
-	TLSCertDirDefault  = "./certs"
+	AppName           = "scproxy"
+	LocalConfig       = "./cache/config.json"
+	EtcConfig         = "/etc/scproxy/config.json"
+	DefaultCacheDir   = "/data/cache"
+	FallbackCacheDir  = "./cache"
+	DNSDefaultAddr    = ":10053"
+	DNSDefaultProxyIP = "127.0.0.1"
+	VHostDefaultPort  = 80
+	TLSDefaultPort    = 443
+	TLSCertDirDefault = "./certs"
 )
+
+var DNSDefaultUpstreams = []string{"223.5.5.5:53", "114.114.114.114:53", "8.8.8.8:53"}
 
 type Config struct {
 	Proxy   string
@@ -113,6 +117,9 @@ func New(flags *CLIFlags) (*Config, string, error) {
 	if enableCache {
 		cacheConfig.Enabled = true
 	}
+	if cacheConfig.Directory == "" && cacheConfig.Enabled {
+		cacheConfig.Directory = resolveDefaultCacheDir()
+	}
 
 	hostConfig := appConfig.Host
 	if host != "" {
@@ -180,7 +187,7 @@ func mergeDNSVHost(dnsCfg DNSConfig, vhostCfg VHostConfig, dnsFlag string) (DNSC
 		dnsCfg.Addr = DNSDefaultAddr
 	}
 	if len(dnsCfg.Upstream) == 0 {
-		dnsCfg.Upstream = []string{DNSDefaultUpstream}
+		dnsCfg.Upstream = slices.Clone(DNSDefaultUpstreams)
 	}
 	if dnsCfg.ProxyIP == "" {
 		dnsCfg.ProxyIP = DNSDefaultProxyIP

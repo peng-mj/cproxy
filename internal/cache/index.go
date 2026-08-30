@@ -136,7 +136,7 @@ func (idx *CacheIndex) Get(hash string) (*IndexEntry, bool) {
 		if decErr != nil {
 			// Delete corrupted entry - log error
 			if delErr := bucket.Delete([]byte(hash)); delErr != nil {
-				slog.Warn("failed to delete corrupted entry %s", "error", hash, delErr)
+				slog.Warn("failed to delete corrupted entry", "hash", hash, "error", delErr)
 			}
 			return nil
 		}
@@ -147,20 +147,20 @@ func (idx *CacheIndex) Get(hash string) (*IndexEntry, bool) {
 		encoded, encErr := encodeEntry(decoded)
 		if encErr != nil {
 			entry = decoded
-			slog.Warn("failed to encode entry %s for access time update", "error", hash, encErr)
+			slog.Warn("failed to encode entry for access time update", "hash", hash, "error", encErr)
 			return nil
 		}
 
 		if putErr := bucket.Put([]byte(hash), encoded); putErr != nil {
 			entry = decoded
-			slog.Warn("failed to update access time for entry %s", "error", hash, putErr)
+			slog.Warn("failed to update access time for entry", "hash", hash, "error", putErr)
 			return nil
 		}
 
 		entry = decoded
 		return nil
 	}); updateErr != nil {
-		slog.Warn("failed to update access time for entry %s", "error", hash, updateErr)
+		slog.Warn("failed to update access time for entry", "hash", hash, "error", updateErr)
 	}
 
 	return entry, found

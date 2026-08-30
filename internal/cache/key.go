@@ -120,26 +120,6 @@ func normalizePath(path string) string {
 	return path
 }
 
-// IsExcludedExtension checks if a file extension is in the exclusion list.
-func IsExcludedExtension(path string, excludeExtensions []string) bool {
-	// Extract extension from path
-	parts := strings.Split(path, ".")
-	if len(parts) < 2 {
-		return false
-	}
-
-	ext := strings.ToLower(parts[len(parts)-1])
-
-	// Check against exclusion list
-	for _, excluded := range excludeExtensions {
-		if ext == strings.ToLower(excluded) {
-			return true
-		}
-	}
-
-	return false
-}
-
 // HasFileExtension checks if the path ends with any of the specified file extensions.
 // It supports both simple extensions (e.g., ".zip") and compound extensions (e.g., ".tar.gz").
 // Compound extensions should be listed first to ensure correct matching.
