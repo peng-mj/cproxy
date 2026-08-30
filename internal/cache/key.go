@@ -54,7 +54,8 @@ func hashCacheKey(key CacheKey) (string, error) {
 
 // GenerateFilePath generates a safe file path from URL path for storage.
 func GenerateFilePath(urlPath string) string {
-	// Normalize path to collapse multiple consecutive slashes
+	// Normalize path to collapse multiple consecutive slashes and resolve
+	// directory paths ("/foo/") to "/foo/index.html"
 	path := normalizePath(urlPath)
 
 	// Remove leading slash
@@ -62,19 +63,13 @@ func GenerateFilePath(urlPath string) string {
 		path = path[1:]
 	}
 
-	// Handle empty path (root)
-	if path == "" || path == "/" {
+	// Handle empty path (defensive; server requests always have at least "/")
+	if path == "" {
 		path = "root"
 	}
 
 	// Sanitize the path to make it safe for file systems
 	path = sanitizePath(path)
-
-	// If path ends with a slash (directory), add index.html as the file name
-	// This prevents issues on Windows where renaming a file to an existing directory fails
-	if len(path) > 0 && (path[len(path)-1] == '/' || path[len(path)-1] == '\\') {
-		path = path + "index.html"
-	}
 
 	return path
 }
@@ -110,9 +105,26 @@ func SanitizePath(path string) string {
 	return result
 }
 
-// normalizePath normalizes a URL path by collapsing multiple consecutive slashes into a single slash.
-// This ensures that paths like "/path//to///resource" and "/path/to/resource" generate the same cache key.
+// normalizePath normalizes a URL path by collapsing multiple consecutive slashes
+// into a single slash and resolving directory paths to their index document.
+// This ensures that paths like "/path//to///resource" and "/path/to/resource"
+// generate the same cache key, and that a directory path ("/foo/") is treated
+// the same as its index document ("/foo/index.html") per HTTP conventions.
 func normalizePath(path string) string {
+	path = collapseSlashes(path)
+
+	// A path ending with a slash denotes a directory; resolve it to its
+	// index document ("index.html"). The root path ("/") becomes "/index.html".
+	if strings.HasSuffix(path, "/") {
+		path += "index.html"
+	}
+
+	return path
+}
+
+// collapseSlashes collapses multiple consecutive slashes in a URL path into a
+// single slash, without resolving directory paths.
+func collapseSlashes(path string) string {
 	// Use a loop to replace multiple consecutive slashes with a single slash
 	for strings.Contains(path, "//") {
 		path = strings.ReplaceAll(path, "//", "/")

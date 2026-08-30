@@ -14,7 +14,9 @@ func ShouldCacheRequest(req *http.Request, cacheConfig config.CacheConfig) bool 
 		return false
 	}
 
-	// Check URL path exclusion (suffix match against the end of the path)
+	// Check URL path exclusion (suffix match against the end of the path);
+	// IsExcludedLastPfx normalizes directory paths and patterns to their
+	// index document form ("/foo/" -> "/foo/index.html") before matching.
 	if IsExcludedLastPfx(req.URL.Path, cacheConfig.ExcludeLastPfx) {
 		return false
 	}
@@ -32,14 +34,18 @@ func ShouldCacheRequest(req *http.Request, cacheConfig config.CacheConfig) bool 
 // e.g. "index.html" matches "/aa/bb/cc/index.html", ".html" matches any
 // path ending with ".html", and "/index.html" matches any path whose
 // trailing segments end with "/index.html".
+// Paths and patterns are normalized to their index document form first
+// ("/foo/" and "/foo/index.html" are equivalent), so a directory path is
+// excluded by "index.html" and a directory pattern ("/ubuntu/dists/")
+// keeps matching directory requests.
 func IsExcludedLastPfx(path string, patterns []string) bool {
-	lowerPath := strings.ToLower(path)
+	lowerPath := strings.ToLower(normalizePath(path))
 
 	for _, pattern := range patterns {
 		if pattern == "" {
 			continue
 		}
-		if strings.HasSuffix(lowerPath, strings.ToLower(pattern)) {
+		if strings.HasSuffix(lowerPath, strings.ToLower(normalizePath(pattern))) {
 			return true
 		}
 	}

@@ -33,7 +33,7 @@ TODO.md
 
 # Build output
 output/
-scproxy
+/scproxy
 
 # Generated certificates
 certs/

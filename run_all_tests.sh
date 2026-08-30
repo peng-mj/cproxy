@@ -315,6 +315,7 @@ main() {
     declare -a TESTS=(
         "Cache Functionality|scripts/test_cache.py|Integration tests for HTTP cache functionality"
         "Diverse Cache Test|scripts/test_diverse_cache.py|Tests with diverse file types, sizes, and sources"
+        "Trailing Slash Handling|scripts/test_trailing_slash.py|Tests /foo/ -> /foo/index.html rewriting, exclusion and cache key equivalence (self-contained, no internet)"
         "Batch Proxy Demo|scripts/test_batch_demo.py|Demo script for batch proxy configuration mode"
         "GitHub Releases|scripts/test_github_releases.py|Tests for GitHub releases optimization"
     )

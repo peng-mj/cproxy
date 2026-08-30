@@ -209,6 +209,8 @@ Created automatically at `./cache/scproxy.json` on first run:
 
 Rules:
 - All patterns are suffix matches, case-insensitive
+- Directory paths are resolved to their index document before matching: `/foo/` is treated as `/foo/index.html` (per HTTP conventions). Directory patterns like `/ubuntu/dists/` are normalized the same way, so they keep matching directory requests
+- As a result, `/foo/` and `/foo/index.html` share the same cache key: caching either one makes the other a cache hit (when not excluded)
 - Deprecated `excludeExtensions`/`excludePaths` entries are converted automatically at startup (with a warning) when `excludeLastPfx` is not set
 
 Example:

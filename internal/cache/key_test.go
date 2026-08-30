@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"net/http"
 	"testing"
 )
 
@@ -219,12 +220,17 @@ func TestNormalizePath(t *testing.T) {
 		{
 			name:     "trailing double slashes",
 			input:    "/path/to/resource//",
-			expected: "/path/to/resource/",
+			expected: "/path/to/resource/index.html",
+		},
+		{
+			name:     "trailing slash directory",
+			input:    "/foo/",
+			expected: "/foo/index.html",
 		},
 		{
 			name:     "only slashes",
 			input:    "////",
-			expected: "/",
+			expected: "/index.html",
 		},
 		{
 			name:     "empty string",
@@ -234,7 +240,7 @@ func TestNormalizePath(t *testing.T) {
 		{
 			name:     "root path",
 			input:    "/",
-			expected: "/",
+			expected: "/index.html",
 		},
 		{
 			name:     "complex real-world URL",
@@ -277,7 +283,22 @@ func TestGenerateFilePath_WithNormalization(t *testing.T) {
 		{
 			name:     "root with double slashes",
 			input:    "//",
-			expected: "root",
+			expected: "index.html",
+		},
+		{
+			name:     "root path",
+			input:    "/",
+			expected: "index.html",
+		},
+		{
+			name:     "directory path resolves to index.html",
+			input:    "/foo/",
+			expected: "foo/index.html",
+		},
+		{
+			name:     "directory path and explicit index.html share storage",
+			input:    "/foo/index.html",
+			expected: "foo/index.html",
 		},
 		{
 			name:     "complex GitHub release URL with extra slashes",
@@ -293,5 +314,43 @@ func TestGenerateFilePath_WithNormalization(t *testing.T) {
 				t.Errorf("GenerateFilePath(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestGenerateCacheKey_TrailingSlashEquivalence(t *testing.T) {
+	paths := []string{
+		"/",
+		"//",
+		"/index.html",
+		"/foo/",
+		"/foo//",
+		"/foo/index.html",
+	}
+
+	makeKey := func(t *testing.T, path string) string {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodGet, "http://example.com"+path, nil)
+		if err != nil {
+			t.Fatalf("failed to create request for %q: %v", path, err)
+		}
+		key, err := GenerateCacheKey(req, "example.com", false)
+		if err != nil {
+			t.Fatalf("GenerateCacheKey failed for %q: %v", path, err)
+		}
+		return key
+	}
+
+	rootKey := makeKey(t, "/index.html")
+	fooKey := makeKey(t, "/foo/index.html")
+
+	for _, path := range paths {
+		key := makeKey(t, path)
+		want := fooKey
+		if path == "/" || path == "//" || path == "/index.html" {
+			want = rootKey
+		}
+		if key != want {
+			t.Errorf("GenerateCacheKey(%q) = %q, want %q (same as /index.html form)", path, key, want)
+		}
 	}
 }

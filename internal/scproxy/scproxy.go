@@ -374,9 +374,46 @@ func (sw *streamingCacheWriter) Close() {
 	sw.tempFilePath = ""
 }
 
+// rewriteDirectoryIndexPath resolves a GET/HEAD request path ending with "/"
+// to its index document by appending "index.html", following HTTP conventions.
+// Only the trailing slash is resolved: interior path segments (including "//"
+// sequences and percent-encoded slashes) are preserved, and other methods
+// (POST, PUT, ...) are left untouched since they often address API endpoints
+// where rewriting would change semantics.
+func rewriteDirectoryIndexPath(r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return
+	}
+	if !strings.HasSuffix(r.URL.Path, "/") {
+		return
+	}
+	r.URL.Path = strings.TrimRight(r.URL.Path, "/") + "/index.html"
+	if r.URL.RawPath != "" && strings.HasSuffix(r.URL.RawPath, "/") {
+		r.URL.RawPath = strings.TrimRight(r.URL.RawPath, "/") + "/index.html"
+	} else {
+		// RawPath is either unset or no longer a valid encoding of the
+		// rewritten Path; drop it so the URL is re-encoded from Path.
+		r.URL.RawPath = ""
+	}
+}
+
 // newCachingHandler creates a caching middleware handler with streaming support.
 func newCachingHandler(handler http.Handler, c *cache.Cache, logger *logging.Logger, cfg *config.Config, target string, targetHost string, statsCollector *stats.Collector) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		originalPath := r.URL.Path
+
+		// Per HTTP conventions, a GET/HEAD path ending with "/" denotes a
+		// directory and resolves to its index document ("/foo/" ->
+		// "/foo/index.html"). Rewrite the request path so cache keys,
+		// exclusion rules, upstream fetches and storage all operate on the
+		// resolved path consistently.
+		rewriteDirectoryIndexPath(r)
+
+		if originalPath != r.URL.Path {
+			logger.Debug("Resolved directory path to index document",
+				"requested_path", originalPath, "path", r.URL.Path)
+		}
+
 		ctx := NewRequestContext(w, r, logger, c, cfg, statsCollector, target, targetHost)
 
 		if !cache.ShouldCacheRequest(r, cfg.Cache) {
@@ -400,7 +437,11 @@ func newCachingHandler(handler http.Handler, c *cache.Cache, logger *logging.Log
 		}
 
 		if cached != nil {
-			logger.Info("Cache hit", "host", targetHost, "key", cache.ShortKey(key), "path", r.URL.Path)
+			logAttrs := []any{"host", targetHost, "key", cache.ShortKey(key), "path", r.URL.Path}
+			if originalPath != r.URL.Path {
+				logAttrs = append(logAttrs, "requested_path", originalPath)
+			}
+			logger.Info("Cache hit", logAttrs...)
 			ctx.handleCachedResponse(cached)
 			return
 		}
@@ -483,7 +524,11 @@ func newCachingHandler(handler http.Handler, c *cache.Cache, logger *logging.Log
 			return
 		}
 
-		logger.Debug("Cache miss", "host", targetHost, "key", cache.ShortKey(key), "path", r.URL.Path)
+		missLogAttrs := []any{"host", targetHost, "key", cache.ShortKey(key), "path", r.URL.Path}
+		if originalPath != r.URL.Path {
+			missLogAttrs = append(missLogAttrs, "requested_path", originalPath)
+		}
+		logger.Debug("Cache miss", missLogAttrs...)
 		streamingWriter := newStreamingCacheWriter(w, r, key, c, logger, cfg, targetHost, targetHost, statsCollector)
 		defer streamingWriter.Close()
 

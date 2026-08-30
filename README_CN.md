@@ -210,6 +210,8 @@ scproxy --target https://httpbin.org --port 9999
 
 规则：
 - 所有模式均为后缀匹配，忽略大小写
+- 目录路径在匹配前会归一为对应的索引文档：`/foo/` 按 `/foo/index.html` 处理（遵循 HTTP 惯例）。`/ubuntu/dists/` 这类目录模式也会同样归一，因此仍然可以匹配目录请求
+- 因此 `/foo/` 与 `/foo/index.html` 共享同一个缓存键：任一被缓存后，另一个请求直接命中（未排除时）
 - 已废弃的 `excludeExtensions`/`excludePaths` 在未设置 `excludeLastPfx` 时会在启动时自动转换（并输出告警）
 
 示例：

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -66,6 +67,14 @@ func NewStorage(cacheDir string) (*Storage, error) {
 		index:    cacheIndex,
 	}
 
+	// Drop index entries created under the legacy path scheme, where
+	// trailing-slash directory paths ("/foo/") produced their own cache
+	// keys. Under the normalized scheme those keys are never generated
+	// again, so the entries would linger as unreachable orphans. This must
+	// run before validation so entries whose data file was shared with a
+	// legacy entry get cleaned up by validateAndCleanupIndex as well.
+	storage.purgeLegacyDirectoryEntries()
+
 	// Validate index and cleanup invalid entries
 	if err := storage.validateAndCleanupIndex(); err != nil {
 		// Log warning but don't fail - storage can still work
@@ -73,6 +82,39 @@ func NewStorage(cacheDir string) (*Storage, error) {
 	}
 
 	return storage, nil
+}
+
+// purgeLegacyDirectoryEntries removes cache entries whose URL path denoted a
+// directory (trailing slash after collapsing "//"). Their cache keys were
+// computed from the raw directory path and can never be produced again now
+// that paths are normalized to their "/index.html" form, so both the index
+// entries and their data files are dropped. The content is simply re-fetched
+// on demand.
+func (s *Storage) purgeLegacyDirectoryEntries() {
+	for hash, entry := range s.index.GetAll() {
+		if !strings.HasSuffix(collapseSlashes(entry.URLPath), "/") {
+			continue
+		}
+
+		// Remove the data file. The legacy scheme stored directory paths
+		// with "index.html" appended (same location the current scheme
+		// computes), and the root path ("/") as a literal "root" file.
+		if err := os.Remove(s.getFilePath(entry.Host, entry.URLPath)); err != nil && !os.IsNotExist(err) {
+			slog.Warn("failed to remove legacy cache file",
+				"host", entry.Host, "urlPath", entry.URLPath, "error", err)
+		}
+		if collapseSlashes(entry.URLPath) == "/" {
+			rootFile := filepath.Join(s.cacheDir, dataDir, sanitizePath(entry.Host), "root")
+			if err := os.Remove(rootFile); err != nil && !os.IsNotExist(err) {
+				slog.Warn("failed to remove legacy root cache file",
+					"host", entry.Host, "error", err)
+			}
+		}
+
+		if err := s.index.Delete(hash); err != nil {
+			slog.Warn("failed to delete legacy cache entry", "hash", hash, "error", err)
+		}
+	}
 }
 
 // validateAndCleanupIndex validates the index and removes invalid entries.

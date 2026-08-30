@@ -774,6 +774,24 @@ func TestShouldCacheRequest_ExcludeLastPfx(t *testing.T) {
 			want:   false,
 		},
 		{
+			name:   "directory path excluded via index.html normalization",
+			method: "GET",
+			path:   "/mirror/site/",
+			want:   false,
+		},
+		{
+			name:   "root path excluded via index.html normalization",
+			method: "GET",
+			path:   "/",
+			want:   false,
+		},
+		{
+			name:   "non-index directory path still excluded by directory pattern",
+			method: "GET",
+			path:   "/mirror/ubuntu/dists/",
+			want:   false,
+		},
+		{
 			name:   "POST not cached regardless",
 			method: "POST",
 			path:   "/ubuntu/pool/main/f/file.tar.xz",
