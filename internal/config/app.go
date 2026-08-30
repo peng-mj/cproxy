@@ -84,13 +84,13 @@ func defaultAppConfig() *AppConfig {
 			Output: LogOutputStdout,
 		},
 		DNS: DNSConfig{
-			Enabled:  true,
+			Enabled:  false,
 			Addr:     ":53",
 			Upstream: []string{"8.8.8.8:53"},
 			ProxyIP:  "127.0.0.1",
 		},
 		VHost: VHostConfig{
-			Enabled: true,
+			Enabled: false,
 			Port:    80,
 		},
 		TLS: TLSConfig{

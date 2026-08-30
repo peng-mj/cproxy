@@ -2,8 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
-	"strings"
 
 	"github.com/peng-mj/scproxy/internal/validation"
 )
@@ -119,54 +119,9 @@ func New(flags *CLIFlags) (*Config, string, error) {
 		hostConfig = host
 	}
 
-	dnsConfig := appConfig.DNS
-	if !dnsConfig.Enabled && dnsConfig.Addr == "" && len(dnsConfig.Upstream) == 0 && dnsConfig.ProxyIP == "" {
-		dnsConfig.Enabled = true
-		dnsConfig.Addr = DNSDefaultAddr
-		dnsConfig.Upstream = []string{DNSDefaultUpstream}
-		dnsConfig.ProxyIP = DNSDefaultProxyIP
-	}
-	if dnsConfig.Addr == "" {
-		dnsConfig.Addr = DNSDefaultAddr
-	}
-	if len(dnsConfig.Upstream) == 0 {
-		dnsConfig.Upstream = []string{DNSDefaultUpstream}
-	}
-	if dnsConfig.ProxyIP == "" {
-		dnsConfig.ProxyIP = DNSDefaultProxyIP
-	}
-	if flags.DNSDisable {
-		dnsConfig.Enabled = false
-	}
-	if flags.DNSEnable {
-		dnsConfig.Enabled = true
-	}
-	if flags.DNSAddr != "" {
-		dnsConfig.Addr = flags.DNSAddr
-	}
-	if flags.DNSUpstream != "" {
-		dnsConfig.Upstream = splitUpstream(flags.DNSUpstream)
-	}
-	if flags.DNSProxyIP != "" {
-		dnsConfig.ProxyIP = flags.DNSProxyIP
-	}
-
-	vhostConfig := appConfig.VHost
-	if !vhostConfig.Enabled && vhostConfig.Port == 0 {
-		vhostConfig.Enabled = true
-		vhostConfig.Port = VHostDefaultPort
-	}
-	if vhostConfig.Port == 0 {
-		vhostConfig.Port = VHostDefaultPort
-	}
-	if flags.VHostDisable {
-		vhostConfig.Enabled = false
-	}
-	if flags.VHostEnable {
-		vhostConfig.Enabled = true
-	}
-	if flags.VHostPort > 0 {
-		vhostConfig.Port = flags.VHostPort
+	dnsConfig, vhostConfig, err := mergeDNSVHost(appConfig.DNS, appConfig.VHost, flags.DNS)
+	if err != nil {
+		return nil, "", err
 	}
 
 	tlsConfig := appConfig.TLS
@@ -220,16 +175,31 @@ func New(flags *CLIFlags) (*Config, string, error) {
 	return cfg, configPath, nil
 }
 
-func splitUpstream(s string) []string {
-	parts := strings.Split(s, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
-		}
+func mergeDNSVHost(dnsCfg DNSConfig, vhostCfg VHostConfig, dnsFlag string) (DNSConfig, VHostConfig, error) {
+	if dnsCfg.Addr == "" {
+		dnsCfg.Addr = DNSDefaultAddr
 	}
-	return result
+	if len(dnsCfg.Upstream) == 0 {
+		dnsCfg.Upstream = []string{DNSDefaultUpstream}
+	}
+	if dnsCfg.ProxyIP == "" {
+		dnsCfg.ProxyIP = DNSDefaultProxyIP
+	}
+	if vhostCfg.Port == 0 {
+		vhostCfg.Port = VHostDefaultPort
+	}
+	if dnsFlag != "" {
+		if net.ParseIP(dnsFlag) == nil {
+			return DNSConfig{}, VHostConfig{}, fmt.Errorf("invalid --dns value %q: expected an IP address (e.g. --dns 192.168.1.100)", dnsFlag)
+		}
+		dnsCfg.Enabled = true
+		dnsCfg.ProxyIP = dnsFlag
+	}
+	if vhostCfg.Enabled != dnsCfg.Enabled {
+		fmt.Printf("Warning: forcing vhost.enabled=%t to match dns.enabled (--dns is the single switch)\n", dnsCfg.Enabled)
+	}
+	vhostCfg.Enabled = dnsCfg.Enabled
+	return dnsCfg, vhostCfg, nil
 }
 
 func validateConfig(proxy string, routes []validation.RouteConfig, vhostPort int, vhostEnabled bool, tlsCfg TLSConfig) error {

@@ -15,17 +15,8 @@ type CLIFlags struct {
 	ClearCache  bool
 	Yes         bool
 
-	// DNS proxy flags
-	DNSEnable   bool
-	DNSDisable  bool
-	DNSAddr     string
-	DNSUpstream string
-	DNSProxyIP  string
-
-	// VHost reverse proxy flags
-	VHostEnable  bool
-	VHostDisable bool
-	VHostPort    int
+	// DNS + VHost mode: proxy IP address, empty = use config file
+	DNS string
 
 	// TLS/HTTPS flags
 	TLSEnable         bool

@@ -35,14 +35,7 @@ var (
 	yesFlag               = pflag.Bool("yes", false, "auto-confirm cache clearing (skip prompt)")
 	logLevelFlag          = pflag.StringP("log-level", "l", "", "set log level")
 	logOutputFlag         = pflag.StringP("log-output", "o", "", "set log output")
-	dnsEnableFlag         = pflag.Bool("dns", false, "force enable DNS proxy server")
-	dnsDisableFlag        = pflag.Bool("no-dns", false, "disable DNS proxy server (overrides config)")
-	dnsAddrFlag           = pflag.String("dns-addr", "", "DNS server listen address (default: \":53\")")
-	dnsUpstreamFlag       = pflag.String("dns-upstream", "", "upstream DNS servers, comma-separated (default: \"8.8.8.8:53\")")
-	dnsProxyIPFlag        = pflag.String("dns-proxy-ip", "", "IP returned by DNS for proxied domains (default: \"127.0.0.1\")")
-	vhostEnableFlag       = pflag.Bool("vhost", false, "force enable virtual host reverse proxy")
-	vhostDisableFlag      = pflag.Bool("no-vhost", false, "disable virtual host reverse proxy (overrides config)")
-	vhostPortFlag         = pflag.Int("vhost-port", 0, "virtual host proxy listen port (default: 80)")
+	dnsFlag               = pflag.String("dns", "", "enable DNS + VHost mode; value sets the IP returned by DNS for proxied domains (e.g. --dns 192.168.1.100, default: \"127.0.0.1\")")
 	tlsEnableFlag         = pflag.Bool("tls", false, "force enable HTTPS TLS listener")
 	tlsDisableFlag        = pflag.Bool("no-tls", false, "disable HTTPS TLS listener (overrides config)")
 	tlsPortFlag           = pflag.Int("tls-port", 0, "HTTPS TLS listen port (default: 443)")
@@ -68,7 +61,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "\n  # Batch mode (from config file)")
 	fmt.Fprintln(os.Stderr, "  scproxy --proxy http://proxy:8080")
 	fmt.Fprintln(os.Stderr, "\n  # DNS + VHost mode (one-stop proxy)")
-	fmt.Fprintln(os.Stderr, "  scproxy --dns --vhost --dns-proxy-ip 192.168.1.100")
+	fmt.Fprintln(os.Stderr, "  scproxy --dns 192.168.1.100")
 	fmt.Fprintln(os.Stderr, "\n  # HTTPS mode (auto-generate root CA, trust certs/ca.crt on client)")
 	fmt.Fprintln(os.Stderr, "  scproxy --tls --tls-cert-dir ./certs")
 	fmt.Fprintln(os.Stderr, "\n  # Clear cache")
@@ -133,14 +126,7 @@ func main() {
 		LogOutput:         *logOutputFlag,
 		ClearCache:        *clearCacheFlag,
 		Yes:               *yesFlag,
-		DNSEnable:         *dnsEnableFlag,
-		DNSDisable:        *dnsDisableFlag,
-		DNSAddr:           *dnsAddrFlag,
-		DNSUpstream:       *dnsUpstreamFlag,
-		DNSProxyIP:        *dnsProxyIPFlag,
-		VHostEnable:       *vhostEnableFlag,
-		VHostDisable:      *vhostDisableFlag,
-		VHostPort:         *vhostPortFlag,
+		DNS:               *dnsFlag,
 		TLSEnable:         *tlsEnableFlag,
 		TLSDisable:        *tlsDisableFlag,
 		TLSPort:           *tlsPortFlag,

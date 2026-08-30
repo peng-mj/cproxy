@@ -89,7 +89,7 @@ fmt:
 ## vet: Run go vet
 vet:
 	@echo "Running go vet..."
-	@$(GO) vet ./...
+	@$(GOCMD) vet ./...
 
 ## help: Show this help message
 help:
